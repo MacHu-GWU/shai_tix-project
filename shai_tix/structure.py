@@ -7,6 +7,11 @@ from pathlib import Path
 from functools import cached_property
 from datetime import datetime, timezone
 
+import sqlalchemy as sa
+import sqlalchemy.orm as orm
+
+from .db import Base, StoryORM, TaskORM
+
 valid_title_charset = string.ascii_letters + string.digits
 valid_title_charset = set(valid_title_charset)
 
@@ -46,7 +51,10 @@ def safe_write(path: Path, content: str):
 
 
 # Pattern: (story|task)-YYYY-MM-DD-NNNNNN-sanitized-title
-folder_pattern = re.compile(r"^(?:story|task)-\d{4}-\d{2}-\d{2}-(\d{6})-")
+# Groups: (1) type, (2) date, (3) id, (4) title
+folder_pattern = re.compile(
+    r"^(story|task)-(\d{4}-\d{2}-\d{2})-(\d{6})-(.+)$"
+)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -74,6 +82,29 @@ class Repo:
             title=title,
         )
 
+    def iter_stories(self):
+        """
+        Iterate over all story folders and yield Story objects.
+
+        Scans the stories directory and yields Story objects for each valid
+        story folder found.
+
+        :returns: Generator yielding Story objects
+        """
+        if not self.dir_stories.exists():
+            return
+
+        for folder in self.dir_stories.iterdir():
+            if folder.is_dir():
+                match = folder_pattern.match(folder.name)
+                if match and match.group(1) == "story":
+                    yield Story(
+                        dir_root=folder,
+                        id=int(match.group(3)),
+                        title=match.group(4),
+                        date=match.group(2),
+                    )
+
     def get_next_story_id(self) -> int:
         """
         Get the next available story ID by scanning existing story folders.
@@ -83,23 +114,47 @@ class Repo:
 
         :returns: Next available story ID
         """
-
-        if not self.dir_stories.exists():
-            return 1
-
         max_id = 0
-
-        for folder in self.dir_stories.iterdir():
-            if folder.is_dir():
-                match = folder_pattern.match(folder.name)
-                if match:
-                    story_id = int(match.group(1))
-                    max_id = max(max_id, story_id)
-
+        for story in self.iter_stories():
+            max_id = max(max_id, story.id)
         return max_id + 1
 
+    @cached_property
+    def path_index_db(self) -> Path:
+        return self.dir_tix / "index.sqlite"
+
     def rebuild_index_db(self):
-        pass
+        """
+        Rebuild the SQLite index database from filesystem.
+
+        Scans all story and task folders, creates ORM objects, and writes
+        them to the SQLite database. Existing data is cleared first.
+        """
+        # Create engine and tables
+        engine = sa.create_engine(f"sqlite:///{self.path_index_db}")
+        Base.metadata.drop_all(engine)
+        Base.metadata.create_all(engine)
+
+        with orm.Session(engine) as session:
+            for story in self.iter_stories():
+                story_orm = StoryORM(
+                    id=story.id,
+                    date=story.date,
+                    title=story.title,
+                )
+                session.add(story_orm)
+
+                # Add tasks for this story
+                for task in story.iter_tasks():
+                    task_orm = TaskORM(
+                        id=task.id,
+                        story_id=story.id,
+                        date=task.date,
+                        title=task.title,
+                    )
+                    session.add(task_orm)
+
+            session.commit()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -107,6 +162,7 @@ class BaseEntity:
     dir_root: Path = dataclasses.field()
     id: int = dataclasses.field()
     title: str = dataclasses.field()
+    date: str = dataclasses.field(default="")
 
     @cached_property
     def path_description(self) -> Path:
@@ -142,6 +198,29 @@ class Story(BaseEntity):
             id=id,
             title=title,
         )
+
+    def iter_tasks(self):
+        """
+        Iterate over all task folders and yield Task objects.
+
+        Scans the tasks directory and yields Task objects for each valid
+        task folder found.
+
+        :returns: Generator yielding Task objects
+        """
+        if not self.dir_tasks.exists():
+            return
+
+        for folder in self.dir_tasks.iterdir():
+            if folder.is_dir():
+                match = folder_pattern.match(folder.name)
+                if match and match.group(1) == "task":
+                    yield Task(
+                        dir_root=folder,
+                        id=int(match.group(3)),
+                        title=match.group(4),
+                        date=match.group(2),
+                    )
 
 
 @dataclasses.dataclass(frozen=True)

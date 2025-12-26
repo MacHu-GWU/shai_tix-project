@@ -8,3 +8,4 @@ repo = Repo(dir_root=path_enum.dir_project_root)
 # story.write_description("# Story 1\nImplement user login functionality.")
 
 # print(repo.get_next_story_id()) # should be 2
+repo.rebuild_index_db()

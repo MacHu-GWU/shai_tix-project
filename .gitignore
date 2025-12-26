@@ -2,7 +2,8 @@
 shai_tix.egg-info/
 docs/source/**/index.md
 tmp/
-claude-code-message.md
+.claude/claude-code-message.md
+.tix/index.sqlite
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

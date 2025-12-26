@@ -73,14 +73,18 @@ class Repo:
         self,
         id: int,
         title: str,
+        description: str | None,
     ) -> "Story":
         folder_name = f"story-{build_folder_name(id, title)}"
         dir_root = self.dir_stories / folder_name
-        return Story(
+        story = Story(
             dir_root=dir_root,
             id=id,
             title=title,
         )
+        if description:
+            story.write_description(description)
+        return story
 
     def iter_stories(self):
         """
@@ -156,6 +160,59 @@ class Repo:
 
             session.commit()
 
+    def _query_story_from_db(self, id: int) -> "Story | None":
+        """
+        Query a story from the SQLite index database.
+
+        :param id: Story ID to query
+
+        :returns: Story object if found, None otherwise
+        """
+        if not self.path_index_db.exists():
+            return None
+
+        engine = sa.create_engine(f"sqlite:///{self.path_index_db}")
+        with orm.Session(engine) as session:
+            story_orm = session.get(StoryORM, id)
+            if story_orm is None:
+                return None
+
+            # Reconstruct folder path: story-{date}-{id:06d}-{title}
+            folder_name = f"story-{story_orm.date}-{str(story_orm.id).zfill(6)}-{story_orm.title}"
+            dir_root = self.dir_stories / folder_name
+            return Story(
+                dir_root=dir_root,
+                id=story_orm.id,
+                title=story_orm.title,
+                date=story_orm.date,
+            )
+
+    def get_story(self, id: int) -> "Story | None":
+        """
+        Get a story by ID from the index database.
+
+        Queries the SQLite index database. If not found, rebuilds the index
+        and tries once more. Returns None if still not found.
+
+        :param id: Story ID to retrieve
+
+        :returns: Story object if found, None otherwise
+        """
+        # First attempt
+        story = self._query_story_from_db(id)
+        if story is not None:
+            return story
+
+        # Rebuild index and try again
+        self.rebuild_index_db()
+        return self._query_story_from_db(id)
+
+    # def list_stories(self) -> list["Story"]:
+    #     pass
+    #
+    # def list_tasks(self) -> list["Task"]:
+    #     pass
+
 
 @dataclasses.dataclass(frozen=True)
 class BaseEntity:
@@ -171,12 +228,24 @@ class BaseEntity:
     def write_description(self, content: str):
         safe_write(self.path_description, content)
 
+    def read_description(self) -> str:
+        try:
+            return self.path_description.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return f"{self.path_description} doesn't exists!"
+
     @cached_property
     def path_report(self) -> Path:
         return self.dir_root / "report.md"
 
     def write_report(self, content: str):
         safe_write(self.path_report, content)
+
+    def read_report(self) -> str:
+        try:
+            return self.path_report.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return f"{self.path_report} doesn't exists!"
 
 
 @dataclasses.dataclass(frozen=True)

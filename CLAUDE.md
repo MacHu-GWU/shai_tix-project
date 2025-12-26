@@ -6,6 +6,8 @@ See @README.rst for complete project overview.
 
 ## Core Development Guides
 
+See @./docs/source/design.md for solution design.
+
 ### Python Development Standards
 
 - **Virtual Environment**: @./.claude/md/Python-virtual-environment-setup-instruction.md

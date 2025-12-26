@@ -7,7 +7,6 @@ from pathlib import Path
 from functools import cached_property
 from datetime import datetime, timezone
 
-
 valid_title_charset = string.ascii_letters + string.digits
 valid_title_charset = set(valid_title_charset)
 
@@ -98,6 +97,9 @@ class Repo:
                     max_id = max(max_id, story_id)
 
         return max_id + 1
+
+    def rebuild_index_db(self):
+        pass
 
 
 @dataclasses.dataclass(frozen=True)

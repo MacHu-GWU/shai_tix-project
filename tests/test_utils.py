@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from shai_tix.structure import (
+from shai_tix.utils import (
     sanitize_title,
 )
 
@@ -26,6 +26,6 @@ if __name__ == "__main__":
 
     run_cov_test(
         __file__,
-        "shai_tix.structure",
+        "shai_tix.utils",
         preview=False,
     )

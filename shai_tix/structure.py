@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import re
 import string
 import dataclasses
 from pathlib import Path
@@ -29,12 +30,12 @@ def sanitize_title(title: str) -> str:
 
 
 def build_folder_name(
-    id: str,
+    id: int,
     title: str,
 ) -> str:
     utc_now = datetime.now(timezone.utc)
     sanitized_title = sanitize_title(title)
-    return f"{utc_now.date()}-{id}-{sanitized_title}"
+    return f"{utc_now.date()}-{str(id).zfill(6)}-{sanitized_title}"
 
 
 def safe_write(path: Path, content: str):
@@ -45,6 +46,10 @@ def safe_write(path: Path, content: str):
         path.write_text(content, encoding="utf-8")
 
 
+# Pattern: (story|task)-YYYY-MM-DD-NNNNNN-sanitized-title
+folder_pattern = re.compile(r"^(?:story|task)-\d{4}-\d{2}-\d{2}-(\d{6})-")
+
+
 @dataclasses.dataclass(frozen=True)
 class Repo:
     dir_root: Path = dataclasses.field()
@@ -53,24 +58,52 @@ class Repo:
     def dir_tix(self) -> Path:
         return self.dir_root / ".tix"
 
+    @cached_property
+    def dir_stories(self) -> Path:
+        return self.dir_tix / "stories"
+
     def create_story(
         self,
-        id: str,
+        id: int,
         title: str,
     ) -> "Story":
         folder_name = f"story-{build_folder_name(id, title)}"
-        dir_root = self.dir_root / "stories" / folder_name
+        dir_root = self.dir_stories / folder_name
         return Story(
             dir_root=dir_root,
             id=id,
             title=title,
         )
 
+    def get_next_story_id(self) -> int:
+        """
+        Get the next available story ID by scanning existing story folders.
+
+        Scans the stories directory for existing story folders, extracts their IDs,
+        and returns max_id + 1. If no stories exist, returns 1.
+
+        :returns: Next available story ID
+        """
+
+        if not self.dir_stories.exists():
+            return 1
+
+        max_id = 0
+
+        for folder in self.dir_stories.iterdir():
+            if folder.is_dir():
+                match = folder_pattern.match(folder.name)
+                if match:
+                    story_id = int(match.group(1))
+                    max_id = max(max_id, story_id)
+
+        return max_id + 1
+
 
 @dataclasses.dataclass(frozen=True)
 class BaseEntity:
     dir_root: Path = dataclasses.field()
-    id: str = dataclasses.field()
+    id: int = dataclasses.field()
     title: str = dataclasses.field()
 
     @cached_property
@@ -91,13 +124,17 @@ class BaseEntity:
 @dataclasses.dataclass(frozen=True)
 class Story(BaseEntity):
 
+    @cached_property
+    def dir_tasks(self) -> Path:
+        return self.dir_root / "tasks"
+
     def create_task(
         self,
-        id: str,
+        id: int,
         title: str,
     ) -> "Task":
         folder_name = f"task-{build_folder_name(id, title)}"
-        dir_root = self.dir_root / "tasks" / folder_name
+        dir_root = self.dir_tasks / folder_name
         return Task(
             dir_root=dir_root,
             id=id,

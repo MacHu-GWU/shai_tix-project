@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 
+import typing as T
 import re
 import string
+import dataclasses
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -38,6 +40,40 @@ def build_folder_name(
 # Pattern: (story|task)-YYYY-MM-DD-NNNNNN-sanitized-title
 # Groups: (1) type, (2) date, (3) id, (4) title
 folder_pattern = re.compile(r"^(story|task)-(\d{4}-\d{2}-\d{2})-(\d{6})-(.+)$")
+
+@dataclasses.dataclass
+class Ticket:
+    type: str # "story" or "task"
+    id: int
+    title: str
+    date: str
+
+    @classmethod
+    def from_folder(cls, folder: Path) -> T.Optional["Ticket"]:
+        """
+        Parse a folder path to extract ticket information.
+
+        Parses the folder name according to the pattern:
+        ``{type}-{date}-{id}-{title}`` where type is "story" or "task".
+
+        :param folder: Path object representing the folder (only name is checked,
+            no filesystem validation is performed)
+
+        :returns: Ticket instance if the folder name matches the expected pattern,
+            None otherwise
+        """
+        match = folder_pattern.match(folder.name)
+        if match is None:
+            return None
+        type_, date, id_str, title = match.groups()
+        return cls(
+            type=type_,
+            id=int(id_str),
+            title=title,
+            date=date,
+        )
+
+
 
 
 def safe_write(path: Path, content: str):

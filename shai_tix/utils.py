@@ -7,7 +7,7 @@ import dataclasses
 from pathlib import Path
 from datetime import datetime, timezone
 
-from .constants import WordsEnum
+from .constants import WordsEnum, ZERO_PADDING
 
 valid_title_charset = string.ascii_letters + string.digits
 valid_title_charset = set(valid_title_charset)
@@ -36,12 +36,15 @@ def build_folder_name(
 ) -> str:
     utc_now = datetime.now(timezone.utc)
     sanitized_title = sanitize_title(title)
-    return f"{utc_now.date()}-{str(id).zfill(6)}-{sanitized_title}"
+    return f"{utc_now.date()}-{str(id).zfill(ZERO_PADDING)}-{sanitized_title}"
 
 
-# Pattern: (story|task)-YYYY-MM-DD-NNNNNN-sanitized-title
+# Pattern: (story|task)-YYYY-MM-DD-NNNNN-sanitized-title (5-digit ID)
 # Groups: (1) type, (2) date, (3) id, (4) title
-folder_pattern = re.compile(f"({WordsEnum.story.value}|{WordsEnum.task.value})" + r"-(\d{4}-\d{2}-\d{2})-(\d{6})-(.+)$")
+folder_pattern = re.compile(
+    f"({WordsEnum.story.value}|{WordsEnum.task.value})"
+    + r"-(\d{4}-\d{2}-\d{2})-(\d{" + str(ZERO_PADDING) + r"})-(.+)$"
+)
 
 @dataclasses.dataclass
 class Ticket:

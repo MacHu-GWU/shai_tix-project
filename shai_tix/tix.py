@@ -344,10 +344,11 @@ class Tix:
         date_upper: str | None = None,
         id_lower: int | None = None,
         id_upper: int | None = None,
+        status: list[StatusEnum] | None = None,
         limit: int = 20,
     ) -> list[Story]:
         """
-        Search stories by title, date range, and/or ID range.
+        Search stories by title, date range, ID range, and/or status.
 
         At least one parameter must be provided. Results are sorted by ID
         descending (newest first).
@@ -356,21 +357,27 @@ class Tix:
         special characters, lowercases), matches if any token appears in
         the story title.
 
+        Status matching: when status list is provided, only stories with
+        status in the list are returned. This requires reading metadata.json
+        for each candidate story.
+
         :param title: Search string to match against story titles
         :param date_lower: Minimum date (inclusive), format YYYY-MM-DD
         :param date_upper: Maximum date (inclusive), format YYYY-MM-DD
         :param id_lower: Minimum ID (inclusive)
         :param id_upper: Maximum ID (inclusive)
+        :param status: List of status values to match (e.g., [StatusEnum.TODO, StatusEnum.IN_PROGRESS])
         :param limit: Maximum number of stories to return
 
         :returns: List of matching Story objects, sorted by ID descending
 
         :raises ValueError: If all parameters are None
         """
-        if all(p is None for p in [title, date_lower, date_upper, id_lower, id_upper]):
+        if all(p is None for p in [title, date_lower, date_upper, id_lower, id_upper, status]):
             raise ValueError("At least one search parameter must be provided")
 
         search_tokens = self._tokenize_title(title) if title else None
+        status_values = {s.value for s in status} if status else None
 
         with orm.Session(self.engine) as session:
             query = session.query(Story)
@@ -387,14 +394,23 @@ class Tix:
             # Sort by ID descending (newest first)
             query = query.order_by(Story.id.desc())
 
+            # Apply limit at SQL level only when status filter is not used
+            if status is None:
+                query = query.limit(limit)
+
             results = []
             for s in query.all():
+                story = Story(id=s.id, date=s.date, title=s.title, path=s.path)
+
                 # Apply title filter in Python (token matching)
                 if search_tokens and not self._title_matches(s.title, search_tokens):
                     continue
-                results.append(
-                    Story(id=s.id, date=s.date, title=s.title, path=s.path)
-                )
+
+                # Apply status filter in Python (requires file read)
+                if status_values and story.status not in status_values:
+                    continue
+
+                results.append(story)
                 if len(results) >= limit:
                     break
 
@@ -407,10 +423,11 @@ class Tix:
         date_upper: str | None = None,
         id_lower: int | None = None,
         id_upper: int | None = None,
+        status: list[StatusEnum] | None = None,
         limit: int = 20,
     ) -> list[Task]:
         """
-        Search tasks by title, date range, and/or ID range.
+        Search tasks by title, date range, ID range, and/or status.
 
         At least one parameter must be provided. Results are sorted by ID
         descending (newest first).
@@ -419,21 +436,27 @@ class Tix:
         special characters, lowercases), matches if any token appears in
         the task title.
 
+        Status matching: when status list is provided, only tasks with
+        status in the list are returned. This requires reading metadata.json
+        for each candidate task.
+
         :param title: Search string to match against task titles
         :param date_lower: Minimum date (inclusive), format YYYY-MM-DD
         :param date_upper: Maximum date (inclusive), format YYYY-MM-DD
         :param id_lower: Minimum ID (inclusive)
         :param id_upper: Maximum ID (inclusive)
+        :param status: List of status values to match (e.g., [StatusEnum.TODO, StatusEnum.IN_PROGRESS])
         :param limit: Maximum number of tasks to return
 
         :returns: List of matching Task objects, sorted by ID descending
 
         :raises ValueError: If all parameters are None
         """
-        if all(p is None for p in [title, date_lower, date_upper, id_lower, id_upper]):
+        if all(p is None for p in [title, date_lower, date_upper, id_lower, id_upper, status]):
             raise ValueError("At least one search parameter must be provided")
 
         search_tokens = self._tokenize_title(title) if title else None
+        status_values = {s.value for s in status} if status else None
 
         with orm.Session(self.engine) as session:
             query = session.query(Task)
@@ -450,20 +473,29 @@ class Tix:
             # Sort by ID descending (newest first)
             query = query.order_by(Task.id.desc())
 
+            # Apply limit at SQL level only when status filter is not used
+            if status is None:
+                query = query.limit(limit)
+
             results = []
             for t in query.all():
+                task = Task(
+                    id=t.id,
+                    story_id=t.story_id,
+                    date=t.date,
+                    title=t.title,
+                    path=t.path,
+                )
+
                 # Apply title filter in Python (token matching)
                 if search_tokens and not self._title_matches(t.title, search_tokens):
                     continue
-                results.append(
-                    Task(
-                        id=t.id,
-                        story_id=t.story_id,
-                        date=t.date,
-                        title=t.title,
-                        path=t.path,
-                    )
-                )
+
+                # Apply status filter in Python (requires file read)
+                if status_values and task.status not in status_values:
+                    continue
+
+                results.append(task)
                 if len(results) >= limit:
                     break
 

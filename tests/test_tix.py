@@ -360,6 +360,209 @@ class TestTixSearchMethods:
         with pytest.raises(ValueError, match="At least one search parameter"):
             tix.search_tasks()
 
+    def test_search_stories_with_limit(self, tix_session):
+        """Test search_stories respects limit parameter."""
+        tix = tix_session
+
+        # Create multiple stories
+        for i in range(5):
+            tix.create_story(title=f"Story {i}")
+
+        # Search with limit
+        results = tix.search_stories(id_lower=1, limit=3)
+        assert len(results) == 3
+
+        # Results should be sorted by ID descending (newest first)
+        assert results[0].id > results[1].id > results[2].id
+
+    def test_search_tasks_with_limit(self, tix_session):
+        """Test search_tasks respects limit parameter."""
+        tix = tix_session
+
+        story = tix.create_story(title="Story")
+        for i in range(5):
+            tix.create_task(story_id=story.id, title=f"Task {i}")
+
+        # Search with limit
+        results = tix.search_tasks(id_lower=1, limit=3)
+        assert len(results) == 3
+
+    def test_search_stories_by_status(self, tix_session):
+        """Test searching stories by status list."""
+        tix = tix_session
+
+        # Create stories with different statuses
+        s1 = tix.create_story(title="Story One")
+        tix.update_story(id=s1.id, status=StatusEnum.TODO)
+
+        s2 = tix.create_story(title="Story Two")
+        tix.update_story(id=s2.id, status=StatusEnum.IN_PROGRESS)
+
+        s3 = tix.create_story(title="Story Three")
+        tix.update_story(id=s3.id, status=StatusEnum.COMPLETED)
+
+        s4 = tix.create_story(title="Story Four")
+        tix.update_story(id=s4.id, status=StatusEnum.TODO)
+
+        # Search by single status
+        results = tix.search_stories(status=[StatusEnum.TODO])
+        assert len(results) == 2
+        result_ids = {r.id for r in results}
+        assert result_ids == {s1.id, s4.id}
+
+        # Search by multiple statuses
+        results = tix.search_stories(status=[StatusEnum.TODO, StatusEnum.IN_PROGRESS])
+        assert len(results) == 3
+        result_ids = {r.id for r in results}
+        assert result_ids == {s1.id, s2.id, s4.id}
+
+        # Search by status with no matches
+        results = tix.search_stories(status=[StatusEnum.BLOCKED])
+        assert len(results) == 0
+
+    def test_search_tasks_by_status(self, tix_session):
+        """Test searching tasks by status list."""
+        tix = tix_session
+
+        story = tix.create_story(title="Parent Story")
+
+        # Create tasks with different statuses
+        t1 = tix.create_task(story_id=story.id, title="Task One")
+        tix.update_task(id=t1.id, status=StatusEnum.TODO)
+
+        t2 = tix.create_task(story_id=story.id, title="Task Two")
+        tix.update_task(id=t2.id, status=StatusEnum.IN_PROGRESS)
+
+        t3 = tix.create_task(story_id=story.id, title="Task Three")
+        tix.update_task(id=t3.id, status=StatusEnum.COMPLETED)
+
+        t4 = tix.create_task(story_id=story.id, title="Task Four")
+        tix.update_task(id=t4.id, status=StatusEnum.TODO)
+
+        # Search by single status
+        results = tix.search_tasks(status=[StatusEnum.TODO])
+        assert len(results) == 2
+        result_ids = {r.id for r in results}
+        assert result_ids == {t1.id, t4.id}
+
+        # Search by multiple statuses
+        results = tix.search_tasks(status=[StatusEnum.TODO, StatusEnum.IN_PROGRESS])
+        assert len(results) == 3
+        result_ids = {r.id for r in results}
+        assert result_ids == {t1.id, t2.id, t4.id}
+
+    def test_search_stories_by_status_with_limit(self, tix_session):
+        """Test searching stories by status respects limit."""
+        tix = tix_session
+
+        # Create 5 stories all with TODO status
+        for i in range(5):
+            s = tix.create_story(title=f"Story {i}")
+            tix.update_story(id=s.id, status=StatusEnum.TODO)
+
+        # Search with limit
+        results = tix.search_stories(status=[StatusEnum.TODO], limit=3)
+        assert len(results) == 3
+
+    def test_search_tasks_by_status_with_limit(self, tix_session):
+        """Test searching tasks by status respects limit."""
+        tix = tix_session
+
+        story = tix.create_story(title="Story")
+
+        # Create 5 tasks all with TODO status
+        for i in range(5):
+            t = tix.create_task(story_id=story.id, title=f"Task {i}")
+            tix.update_task(id=t.id, status=StatusEnum.TODO)
+
+        # Search with limit
+        results = tix.search_tasks(status=[StatusEnum.TODO], limit=3)
+        assert len(results) == 3
+
+    def test_search_stories_status_combined_with_other_filters(self, tix_session):
+        """Test searching stories by status combined with title and date filters."""
+        tix = tix_session
+
+        # Create stories
+        s1 = tix.create_story(title="Login Feature")
+        tix.update_story(id=s1.id, status=StatusEnum.TODO)
+
+        s2 = tix.create_story(title="Login Bug Fix")
+        tix.update_story(id=s2.id, status=StatusEnum.COMPLETED)
+
+        s3 = tix.create_story(title="Database Setup")
+        tix.update_story(id=s3.id, status=StatusEnum.TODO)
+
+        # Search by status and title
+        results = tix.search_stories(
+            title="login",
+            status=[StatusEnum.TODO],
+        )
+        assert len(results) == 1
+        assert results[0].id == s1.id
+
+    def test_search_tasks_status_combined_with_other_filters(self, tix_session):
+        """Test searching tasks by status combined with title filter."""
+        tix = tix_session
+
+        story = tix.create_story(title="Story")
+
+        t1 = tix.create_task(story_id=story.id, title="Write Tests")
+        tix.update_task(id=t1.id, status=StatusEnum.TODO)
+
+        t2 = tix.create_task(story_id=story.id, title="Write Docs")
+        tix.update_task(id=t2.id, status=StatusEnum.COMPLETED)
+
+        t3 = tix.create_task(story_id=story.id, title="Fix Bug")
+        tix.update_task(id=t3.id, status=StatusEnum.TODO)
+
+        # Search by status and title
+        results = tix.search_tasks(
+            title="write",
+            status=[StatusEnum.TODO],
+        )
+        assert len(results) == 1
+        assert results[0].id == t1.id
+
+
+class TestTixQueryMethodsWithLimit:
+    """Test query methods with limit parameter."""
+
+    def test_query_stories_with_limit(self, tix_session):
+        """Test query_stories respects limit parameter."""
+        tix = tix_session
+
+        # Create multiple stories
+        for i in range(5):
+            tix.create_story(title=f"Story {i}")
+
+        # Query with default limit
+        results = tix.query_stories()
+        assert len(results) == 5
+
+        # Query with custom limit
+        results = tix.query_stories(limit=3)
+        assert len(results) == 3
+
+        # Results should be sorted by ID descending
+        assert results[0].id > results[1].id > results[2].id
+
+    def test_query_tasks_with_limit(self, tix_session):
+        """Test query_tasks respects limit parameter."""
+        tix = tix_session
+
+        story = tix.create_story(title="Story")
+        for i in range(5):
+            tix.create_task(story_id=story.id, title=f"Task {i}")
+
+        # Query with default limit
+        results = tix.query_tasks()
+        assert len(results) == 5
+
+        # Query with custom limit
+        results = tix.query_tasks(limit=3)
+        assert len(results) == 3
+
 
 class TestTixManageStory:
     """Test Story CRUD operations with a complete workflow."""

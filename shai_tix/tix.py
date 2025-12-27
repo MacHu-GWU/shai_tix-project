@@ -592,6 +592,92 @@ class Tix:
         self.rebuild_index_db()
         return self.query_task(id)
 
+    def update_task(
+        self,
+        id: int,
+        title: str | None = None,
+        status: StatusEnum | None = None,
+        description: str | None = None,
+        report: str | None = None,
+    ) -> Task | None:
+        """
+        Update a task's metadata and content files.
+
+        Supports updating title, status, description, and report. When title
+        changes, the task folder is renamed accordingly.
+
+        :param id: Task ID to update
+        :param title: New title (optional, triggers folder rename)
+        :param status: New status value (optional)
+        :param description: New description content (optional)
+        :param report: New report content (optional)
+
+        :returns: Updated Task object, or None if task not found
+        """
+        task = self.query_task(id)
+        if task is None:
+            return None
+
+        new_title = title if title is not None else task.title
+        new_path = task.path
+
+        # Handle title change - requires folder rename
+        if title is not None and title != task.title:
+            # Build new folder name with sanitized title
+            sanitized_title = sanitize_title(title)
+            new_folder_name = build_folder_name(
+                type=WordsEnum.task.value,
+                date=task.date,
+                id=task.id,
+                sanitized_title=sanitized_title,
+            )
+            # Task folder is inside story/tasks/
+            new_dir = task.dir_root.parent / new_folder_name
+
+            is_folder_changed = new_dir != task.dir_root
+
+            if is_folder_changed:
+                shutil.move(str(task.dir_root), str(new_dir))
+                new_path = str(new_dir)
+
+            # Update title (and path if folder changed) in database
+            with orm.Session(self.engine) as session:
+                if is_folder_changed:
+                    session.execute(
+                        sa.update(Task)
+                        .where(Task.id == id)
+                        .values(title=title, path=new_path)
+                    )
+                else:
+                    session.execute(
+                        sa.update(Task).where(Task.id == id).values(title=title)
+                    )
+                session.commit()
+
+        # Create a temporary Task object to access filesystem methods
+        temp_task = Task(
+            id=task.id,
+            story_id=task.story_id,
+            date=task.date,
+            title=new_title,
+            path=new_path,
+        )
+
+        # Update metadata file if status provided
+        if status is not None:
+            temp_task.write_metadata(status=status)
+
+        # Update description file if provided
+        if description is not None:
+            temp_task.write_description(description)
+
+        # Update report file if provided
+        if report is not None:
+            temp_task.write_report(report)
+
+        # Return a fresh detached Task object
+        return temp_task
+
     def delete_task(self, id: int) -> bool:
         """
         Delete a task by ID from filesystem and index database.

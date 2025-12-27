@@ -245,97 +245,128 @@ class TestTixManageStory:
         assert tix.delete_story(story1.id) is False  # Already deleted
 
 
-class TestTixManageTask(BaseTest):
-    """Test Task CRUD operations."""
+class TestTixManageTask:
+    """Test Task CRUD operations with a complete workflow."""
 
-    @classmethod
-    def setup_class(cls):
-        """Set up test repo before each test."""
-        shutil.rmtree(cls.dir_tix, ignore_errors=True)
-        cls._setup_class_create_tix()
-        # Create a parent story for task tests
-        cls.parent_story = cls.tix.create_story(title="Parent Story")
+    def test(self, tix_session):
+        """
+        Test complete Task CRUD workflow.
 
-    def test_create_task(self):
-        """Test creating a new task under a story."""
-        task = self.tix.create_task(
-            story_id=self.parent_story.id,
-            title="My Test Task",
-            description="Task description here.",
+        Flow:
+        1. Create parent story for tasks
+        2. Create task with description
+        3. Verify task exists via get_task and query_task
+        4. Verify filesystem artifacts
+        5. Create second task
+        6. Verify both tasks exist via query_tasks_by_story
+        7. Update first task (title, status, description, report)
+        8. Verify update applied correctly
+        9. Delete first task
+        10. Verify first task is gone, second remains
+        11. Delete non-existent task returns False
+        12. Create task with invalid story ID raises error
+        """
+        tix = tix_session
+
+        # --- Step 1: Create parent story ---
+        parent_story = tix.create_story(title="Parent Story")
+        assert parent_story.id == 1
+
+        # --- Step 2: Create first task ---
+        task1 = tix.create_task(
+            story_id=parent_story.id,
+            title="First Task",
+            description="Description for first task.",
         )
+        assert task1.id == 2  # Global ID after story
+        assert task1.story_id == parent_story.id
+        assert task1.title == "First Task"  # Original title, not sanitized
 
-        # Verify task attributes
-        assert task.story_id == self.parent_story.id
-        assert task.title == "My Test Task"  # Original title, not sanitized
-        assert task.dir_root.exists()
+        # --- Step 3: Verify task exists via get/query ---
+        fetched = tix.get_task(task1.id)
+        assert fetched is not None
+        assert fetched.id == task1.id
+        assert fetched.title == task1.title
 
-        # Verify files created
-        assert task.path_metadata.exists()
-        assert task.path_description.exists()
-        assert "Task description here." in task.read_description()
+        queried = tix.query_task(task1.id)
+        assert queried is not None
+        assert queried.id == task1.id
 
-    def test_create_task_invalid_story(self):
-        """Test creating a task with invalid story ID raises error."""
-        import pytest
-        with pytest.raises(ValueError, match="Story with ID 99999 not found"):
-            self.tix.create_task(story_id=99999, title="Invalid Task")
+        # --- Step 4: Verify filesystem artifacts ---
+        assert task1.dir_root.exists()
+        assert task1.path_metadata.exists()
+        assert task1.path_description.exists()
+        assert "Description for first task." in task1.read_description()
 
-    def test_get_task(self):
-        """Test retrieving a task by ID."""
-        # Create a task first
-        created = self.tix.create_task(
-            story_id=self.parent_story.id,
-            title="Get Test Task",
+        # --- Step 5: Create second task ---
+        task2 = tix.create_task(
+            story_id=parent_story.id,
+            title="Second Task",
         )
+        assert task2.id == 3
+        assert task2.title == "Second Task"
 
-        # Get the task
-        task = self.tix.get_task(created.id)
-        assert task is not None
-        assert task.id == created.id
-        assert task.title == created.title
+        # --- Step 6: Verify both tasks exist via query_tasks_by_story ---
+        tasks = tix.query_tasks_by_story(parent_story.id)
+        assert len(tasks) == 2
+        task_ids = {t.id for t in tasks}
+        assert task_ids == {2, 3}
 
-        # Get non-existent task
-        assert self.tix.get_task(99999) is None
+        # Query for non-existent story returns empty list
+        assert len(tix.query_tasks_by_story(99999)) == 0
 
-    def test_delete_task(self):
-        """Test deleting a task."""
-        # Create a task
-        task = self.tix.create_task(
-            story_id=self.parent_story.id,
-            title="Delete Test Task",
+        # --- Step 7: Update first task ---
+        task1_old_path = task1.dir_root
+        updated_task = tix.update_task(
+            id=task1.id,
+            title="Updated First Task",
+            status=StatusEnum.IN_PROGRESS,
+            description="Updated description.",
+            report="Task progress report.",
         )
-        task_path = task.dir_root
+        assert updated_task is not None
+        assert updated_task.title == "Updated First Task"
 
-        # Verify it exists
-        assert task_path.exists()
-        assert self.tix.get_task(task.id) is not None
+        # --- Step 8: Verify update applied correctly ---
+        # Title change should trigger folder rename
+        assert not task1_old_path.exists()
+        assert updated_task.dir_root.exists()
+        assert updated_task.status == StatusEnum.IN_PROGRESS.value
+        assert "Updated description." in updated_task.read_description()
+        assert "Task progress report." in updated_task.read_report()
 
-        # Delete it
-        result = self.tix.delete_task(task.id)
+        # Verify database also updated
+        refetched = tix.get_task(task1.id)
+        assert refetched is not None
+        assert refetched.title == "Updated First Task"
+
+        # Update non-existent task returns None
+        assert tix.update_task(id=99999, title="Nothing") is None
+
+        # --- Step 9: Delete first task ---
+        task1_path = updated_task.dir_root
+        result = tix.delete_task(task1.id)
         assert result is True
 
-        # Verify it's gone
-        assert not task_path.exists()
-        assert self.tix.query_task(task.id) is None
+        # --- Step 10: Verify first task gone, second remains ---
+        assert not task1_path.exists()
+        assert tix.query_task(task1.id) is None
+        assert tix.get_task(task1.id) is None
 
-        # Delete non-existent task
-        assert self.tix.delete_task(99999) is False
+        assert tix.query_task(task2.id) is not None
+        assert task2.dir_root.exists()
 
-    def test_query_tasks_by_story(self):
-        """Test querying tasks by story ID."""
-        # Create multiple tasks
-        task1 = self.tix.create_task(story_id=self.parent_story.id, title="Task A")
-        task2 = self.tix.create_task(story_id=self.parent_story.id, title="Task B")
+        tasks_after = tix.query_tasks_by_story(parent_story.id)
+        assert len(tasks_after) == 1
+        assert tasks_after[0].id == 3
 
-        # Query tasks by story
-        tasks = self.tix.query_tasks_by_story(self.parent_story.id)
-        task_ids = {t.id for t in tasks}
+        # --- Step 11: Delete non-existent task returns False ---
+        assert tix.delete_task(99999) is False
+        assert tix.delete_task(task1.id) is False  # Already deleted
 
-        assert task1.id in task_ids
-        assert task2.id in task_ids
-
-        # Query for non-existent story
-        assert len(self.tix.query_tasks_by_story(99999)) == 0
+        # --- Step 12: Create task with invalid story ID raises error ---
+        with pytest.raises(ValueError, match="Story with ID 99999 not found"):
+            tix.create_task(story_id=99999, title="Invalid Task")
 
 
 if __name__ == "__main__":

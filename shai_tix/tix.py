@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import os
 import dataclasses
 from pathlib import Path
 from functools import cached_property
@@ -80,50 +81,67 @@ class Tix:
 
     def iter_stories_or_tasks(self):
         """
-        Iterate over all stories and tasks in a single directory scan.
+        Iterate over all stories and tasks using os.scandir for efficiency.
 
-        Scans two levels: story folders directly under stories/, and task
-        folders under each story's tasks/ subdirectory. Yields Story objects
-        first, then their associated Task objects, in a single traversal.
+        Uses depth-first traversal with os.scandir which caches file metadata
+        in DirEntry objects, avoiding extra stat() system calls compared to
+        Path.is_dir().
+
+        Directory structure expected::
+
+            stories/
+            ├── story-2025-01-01-000001-xxx/
+            │   └── tasks/
+            │       └── task-2025-01-01-000002-yyy/
+            └── story-2025-01-02-000003-zzz/
+                └── tasks/
+                    └── task-2025-01-02-000004-www/
 
         :returns: Generator yielding Story or Task objects
         """
         if not self.dir_stories.exists():
             return
 
-        for story_folder in self.dir_stories.iterdir():
-            if not story_folder.is_dir():
-                continue
-
-            ticket = Ticket.from_folder(story_folder)
-            if ticket is None or ticket.type != WordsEnum.story.value:
-                continue
-
-            # Yield the story
-            yield Story(
-                dir_root=story_folder,
-                id=ticket.id,
-                title=ticket.title,
-                date=ticket.date,
-            )
-
-            # Scan tasks subdirectory in the same traversal
-            tasks_dir = story_folder / WordsEnum.tasks.value
-            if not tasks_dir.exists():
-                continue
-
-            for task_folder in tasks_dir.iterdir():
-                if not task_folder.is_dir():
+        # Single scandir call at stories level
+        with os.scandir(self.dir_stories) as story_entries:
+            for story_entry in story_entries:
+                # DirEntry.is_dir() uses cached metadata, no extra syscall
+                if not story_entry.is_dir():
                     continue
 
-                task_ticket = Ticket.from_folder(task_folder)
-                if task_ticket is not None and task_ticket.type == "task":
-                    yield Task(
-                        dir_root=task_folder,
-                        id=task_ticket.id,
-                        title=task_ticket.title,
-                        date=task_ticket.date,
-                    )
+                story_folder = Path(story_entry.path)
+                ticket = Ticket.from_folder(story_folder)
+                if ticket is None or ticket.type != WordsEnum.story.value:
+                    continue
+
+                # Yield story first (depth-first)
+                yield Story(
+                    dir_root=story_folder,
+                    id=ticket.id,
+                    title=ticket.title,
+                    date=ticket.date,
+                )
+
+                # Then scan tasks subdirectory
+                tasks_dir = story_folder / WordsEnum.tasks.value
+                if not tasks_dir.exists():
+                    continue
+
+                # Second scandir call at tasks level
+                with os.scandir(tasks_dir) as task_entries:
+                    for task_entry in task_entries:
+                        if not task_entry.is_dir():
+                            continue
+
+                        task_folder = Path(task_entry.path)
+                        task_ticket = Ticket.from_folder(task_folder)
+                        if task_ticket is not None and task_ticket.type == WordsEnum.task.value:
+                            yield Task(
+                                dir_root=task_folder,
+                                id=task_ticket.id,
+                                title=task_ticket.title,
+                                date=task_ticket.date,
+                            )
 
     def get_next_id(self) -> int:
         """

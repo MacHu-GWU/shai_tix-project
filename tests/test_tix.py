@@ -30,6 +30,7 @@ import shutil
 from pathlib import Path
 
 from shai_tix.paths import path_enum
+from shai_tix.constants import StatusEnum
 from shai_tix.story import Story
 from shai_tix.task import Task
 
@@ -124,16 +125,19 @@ class TestTixListMethods:
         story1 = story_by_id[1]
         assert story1.title == "first-story"
         assert story1.date == "2025-01-01"
+        assert story1.status == StatusEnum.COMPLETED.value
 
         # Check second story
         story4 = story_by_id[4]
         assert story4.title == "second-story"
         assert story4.date == "2025-01-02"
+        assert story4.status == StatusEnum.IN_PROGRESS.value
 
         # Check third story
         story8 = story_by_id[8]
         assert story8.title == "third-story"
         assert story8.date == "2025-01-03"
+        assert story8.status == StatusEnum.TODO.value
 
     def test_task_attributes(self):
         """Test task objects have correct attributes."""
@@ -144,14 +148,17 @@ class TestTixListMethods:
         task2 = task_by_id[2]
         assert task2.title == "task-one"
         assert task2.date == "2025-01-01"
+        assert task2.status == StatusEnum.COMPLETED.value
 
         task5 = task_by_id[5]
         assert task5.title == "task-a"
         assert task5.date == "2025-01-02"
+        assert task5.status == StatusEnum.COMPLETED.value
 
         task12 = task_by_id[12]
         assert task12.title == "task-w"
         assert task12.date == "2025-01-03"
+        assert task12.status == StatusEnum.TODO.value
 
 
 if __name__ == "__main__":

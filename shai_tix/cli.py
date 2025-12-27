@@ -73,29 +73,34 @@ class Cli:
         date_upper: str = None,
         id_lower: int = None,
         id_upper: int = None,
+        status: str = None,
         limit: int = 20,
         root: str | None = None,
     ):
         """
-        Search stories by title, date range, or ID range.
+        Search stories by title, date range, ID range, or status.
 
         :param title: Search keyword in title.
         :param date_lower: Minimum date (YYYY-MM-DD).
         :param date_upper: Maximum date (YYYY-MM-DD).
         :param id_lower: Minimum story ID.
         :param id_upper: Maximum story ID.
+        :param status: Comma-separated status values (TODO,IN_PROGRESS,COMPLETED,BLOCKED,CANCELED).
         :param limit: Maximum number of stories to display.
         :param root: Project root directory (default: current directory).
         """
         tix = _get_tix(root)
         tix.ensure_index_db()
+        status_list = [StatusEnum(s.strip()) for s in status.split(",")] if status else None
         stories = tix.search_stories(
             title=title,
             date_lower=date_lower,
             date_upper=date_upper,
             id_lower=id_lower,
             id_upper=id_upper,
-        )[:limit]
+            status=status_list,
+            limit=limit,
+        )
         for story in stories:
             print(f"[{story.id}] {story.date} - {story.title}")
 
@@ -232,29 +237,34 @@ class Cli:
         date_upper: str = None,
         id_lower: int = None,
         id_upper: int = None,
+        status: str = None,
         limit: int = 20,
         root: str | None = None,
     ):
         """
-        Search tasks by title, date range, or ID range.
+        Search tasks by title, date range, ID range, or status.
 
         :param title: Search keyword in title.
         :param date_lower: Minimum date (YYYY-MM-DD).
         :param date_upper: Maximum date (YYYY-MM-DD).
         :param id_lower: Minimum task ID.
         :param id_upper: Maximum task ID.
+        :param status: Comma-separated status values (TODO,IN_PROGRESS,COMPLETED,BLOCKED,CANCELED).
         :param limit: Maximum number of tasks to display.
         :param root: Project root directory (default: current directory).
         """
         tix = _get_tix(root)
         tix.ensure_index_db()
+        status_list = [StatusEnum(s.strip()) for s in status.split(",")] if status else None
         tasks = tix.search_tasks(
             title=title,
             date_lower=date_lower,
             date_upper=date_upper,
             id_lower=id_lower,
             id_upper=id_upper,
-        )[:limit]
+            status=status_list,
+            limit=limit,
+        )
         for task in tasks:
             print(f"[{task.id}] {task.date} - {task.title} (story: {task.story_id})")
 

@@ -250,5 +250,60 @@ shai-tix search_tasks --title "bug"
 echo ""
 
 echo "=============================================================================="
+echo "Part 7: Test search by status"
+echo "=============================================================================="
+echo ""
+
+echo "--- Create stories with different statuses ---"
+shai-tix create_story "TODO Story One"
+shai-tix update_story 19 --status "TODO"
+shai-tix create_story "In Progress Story"
+shai-tix update_story 20 --status "IN_PROGRESS"
+shai-tix create_story "Completed Story"
+shai-tix update_story 21 --status "COMPLETED"
+shai-tix create_story "TODO Story Two"
+shai-tix update_story 22 --status "TODO"
+echo ""
+
+echo "--- Search stories by single status (TODO) ---"
+shai-tix search_stories --status "TODO"
+echo ""
+
+echo "--- Search stories by multiple statuses (TODO,IN_PROGRESS) ---"
+shai-tix search_stories --status "TODO,IN_PROGRESS"
+echo ""
+
+echo "--- Search stories by status with no matches (BLOCKED) ---"
+shai-tix search_stories --status "BLOCKED"
+echo ""
+
+echo "--- Search stories by status combined with title ---"
+shai-tix search_stories --title "TODO" --status "TODO"
+echo ""
+
+echo "--- Create tasks with different statuses ---"
+shai-tix create_task 19 "TODO Task One"
+shai-tix update_task 23 --status "TODO"
+shai-tix create_task 19 "In Progress Task"
+shai-tix update_task 24 --status "IN_PROGRESS"
+shai-tix create_task 19 "Completed Task"
+shai-tix update_task 25 --status "COMPLETED"
+shai-tix create_task 19 "TODO Task Two"
+shai-tix update_task 26 --status "TODO"
+echo ""
+
+echo "--- Search tasks by single status (TODO) ---"
+shai-tix search_tasks --status "TODO"
+echo ""
+
+echo "--- Search tasks by multiple statuses (TODO,IN_PROGRESS) ---"
+shai-tix search_tasks --status "TODO,IN_PROGRESS"
+echo ""
+
+echo "--- Search tasks by status with limit ---"
+shai-tix search_tasks --status "TODO" --limit 1
+echo ""
+
+echo "=============================================================================="
 echo "CLI Test Complete!"
 echo "=============================================================================="

@@ -244,6 +244,86 @@ class TestTixManageStory:
         assert tix.delete_story(99999) is False
         assert tix.delete_story(story1.id) is False  # Already deleted
 
+    def test_update_story_with_tasks(self, tix_session):
+        """
+        Test that update_story updates Task.path when story folder changes.
+
+        Flow:
+        1. Create story
+        2. Create tasks under story
+        3. Update story title (triggers folder rename)
+        4. Verify Task.path in database is updated correctly
+        5. Verify tasks still accessible via filesystem
+        """
+        tix = tix_session
+
+        # --- Step 1: Create story ---
+        story = tix.create_story(title="Original Title")
+        original_story_path = str(story.dir_root)
+
+        # --- Step 2: Create tasks under story ---
+        task1 = tix.create_task(story_id=story.id, title="Task One")
+        task2 = tix.create_task(story_id=story.id, title="Task Two")
+        original_task1_path = task1.path
+        original_task2_path = task2.path
+
+        # Verify tasks are under story folder
+        assert original_story_path in original_task1_path
+        assert original_story_path in original_task2_path
+
+        # --- Step 3: Update story title (triggers folder rename) ---
+        updated_story = tix.update_story(id=story.id, title="Renamed Title")
+        new_story_path = str(updated_story.dir_root)
+
+        # Verify story folder changed
+        assert new_story_path != original_story_path
+        assert updated_story.dir_root.exists()
+
+        # --- Step 4: Verify Task.path in database is updated ---
+        refetched_task1 = tix.get_task(task1.id)
+        refetched_task2 = tix.get_task(task2.id)
+
+        # Task paths should contain new story path, not old
+        assert new_story_path in refetched_task1.path
+        assert original_story_path not in refetched_task1.path
+        assert new_story_path in refetched_task2.path
+        assert original_story_path not in refetched_task2.path
+
+        # --- Step 5: Verify tasks still accessible via filesystem ---
+        assert refetched_task1.dir_root.exists()
+        assert refetched_task2.dir_root.exists()
+        assert refetched_task1.path_metadata.exists()
+        assert refetched_task2.path_metadata.exists()
+
+    def test_delete_story_with_tasks(self, tix_session):
+        """
+        Test that delete_story also deletes all tasks from database.
+
+        Flow:
+        1. Create story with tasks
+        2. Delete story
+        3. Verify tasks are also deleted from database
+        """
+        tix = tix_session
+
+        # --- Step 1: Create story with tasks ---
+        story = tix.create_story(title="Story To Delete")
+        task1 = tix.create_task(story_id=story.id, title="Task A")
+        task2 = tix.create_task(story_id=story.id, title="Task B")
+
+        # Verify tasks exist
+        assert tix.get_task(task1.id) is not None
+        assert tix.get_task(task2.id) is not None
+
+        # --- Step 2: Delete story ---
+        result = tix.delete_story(story.id)
+        assert result is True
+
+        # --- Step 3: Verify tasks are also deleted from database ---
+        assert tix.get_task(task1.id) is None
+        assert tix.get_task(task2.id) is None
+        assert len(tix.query_tasks_by_story(story.id)) == 0
+
 
 class TestTixManageTask:
     """Test Task CRUD operations with a complete workflow."""

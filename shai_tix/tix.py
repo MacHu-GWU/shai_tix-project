@@ -431,10 +431,6 @@ class Tix:
                 shutil.move(str(story.dir_root), str(new_dir))
                 new_path = str(new_dir)
 
-                # TODO: When story path changes, all tasks under it also have their
-                # filesystem paths changed. We need to update Task.path in the database
-                # for all tasks belonging to this story. Not implemented yet.
-
             # Update title (and path if folder changed) in database
             with orm.Session(self.engine) as session:
                 if is_folder_changed:
@@ -443,6 +439,16 @@ class Tix:
                         .where(Story.id == id)
                         .values(title=title, path=new_path)
                     )
+
+                    # Update Task.path for all tasks under this story
+                    old_story_path = str(story.dir_root)
+                    for task in session.query(Task).where(Task.story_id == id).all():
+                        new_task_path = task.path.replace(old_story_path, new_path, 1)
+                        session.execute(
+                            sa.update(Task)
+                            .where(Task.id == task.id)
+                            .values(path=new_task_path)
+                        )
                 else:
                     session.execute(
                         sa.update(Story).where(Story.id == id).values(title=title)
@@ -497,8 +503,6 @@ class Tix:
             session.execute(sa.delete(Task).where(Task.story_id == id))
             session.execute(sa.delete(Story).where(Story.id == id))
             session.commit()
-
-        # TODO: delete all tasks under this story from the database as well
 
         return True
 

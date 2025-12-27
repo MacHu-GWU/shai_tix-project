@@ -4,15 +4,14 @@ import dataclasses
 from pathlib import Path
 from functools import cached_property
 from datetime import datetime, timezone
+from contextlib import contextmanager
 
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
 
-from .constants import ZERO_PADDING, WordsEnum, StatusEnum
-from .db import Base, StoryORM, TaskORM
+from .constants import ZERO_PADDING, WordsEnum
+from .db import Base, Story, Task
 from .utils import sanitize_title, Ticket
-from .story import Story
-from .task import Task
 
 
 class StoryAlreadyExistsError(Exception):
@@ -25,12 +24,35 @@ class StoryAlreadyExistsError(Exception):
 class Tix:
     dir_root: Path = dataclasses.field()
 
+    # --------------------------------------------------------------------------
+    # Context Manager
+    # --------------------------------------------------------------------------
+    @contextmanager
+    def session(self):
+        """
+        Start a session with synchronized index database.
+
+        Rebuilds the SQLite index from filesystem on entry, ensuring
+        all query_* methods return up-to-date results.
+
+        Usage::
+
+            tix = Tix(dir_root=path)
+            with tix.session():
+                stories = tix.query_stories()
+                tasks = tix.query_tasks()
+
+        :returns: Context manager yielding self
+        """
+        self.rebuild_index_db()
+        yield self
+
     @cached_property
     def dir_stories(self) -> Path:
         return self.dir_root / "stories"
 
     # --------------------------------------------------------------------------
-    # list methods
+    # Filesystem scan methods (iter_*)
     # --------------------------------------------------------------------------
     def iter_stories(self):
         """
@@ -49,10 +71,10 @@ class Tix:
                 ticket = Ticket.from_folder(folder)
                 if ticket is not None and ticket.type == WordsEnum.story.value:
                     yield Story(
-                        dir_root=folder,
                         id=ticket.id,
-                        title=ticket.title,
                         date=ticket.date,
+                        title=ticket.title,
+                        path=str(folder),
                     )
 
     def iter_tasks(self):
@@ -73,11 +95,17 @@ class Tix:
             if folder.is_dir():
                 ticket = Ticket.from_folder(folder)
                 if ticket is not None and ticket.type == WordsEnum.task.value:
+                    # Extract story_id from parent folder
+                    story_folder = folder.parent.parent
+                    story_ticket = Ticket.from_folder(story_folder)
+                    story_id = story_ticket.id if story_ticket else 0
+
                     yield Task(
-                        dir_root=folder,
                         id=ticket.id,
-                        title=ticket.title,
+                        story_id=story_id,
                         date=ticket.date,
+                        title=ticket.title,
+                        path=str(folder),
                     )
 
     def iter_stories_or_tasks(self):
@@ -96,6 +124,9 @@ class Tix:
         if not self.dir_stories.exists():
             return
 
+        # Track story IDs for tasks
+        story_id_map: dict[Path, int] = {}
+
         # Single rglob call for directories only, sorted for depth-first order
         for path in sorted(self.dir_stories.rglob("*/")):
             name = path.name
@@ -110,21 +141,27 @@ class Tix:
                 continue
 
             if ticket.type == WordsEnum.story.value:
+                story_id_map[path] = ticket.id
                 yield Story(
-                    dir_root=path,
                     id=ticket.id,
-                    title=ticket.title,
                     date=ticket.date,
+                    title=ticket.title,
+                    path=str(path),
                 )
             elif ticket.type == WordsEnum.task.value:
+                # Get story_id from parent folder
+                story_folder = path.parent.parent
+                story_id = story_id_map.get(story_folder, 0)
+
                 yield Task(
-                    dir_root=path,
                     id=ticket.id,
-                    title=ticket.title,
+                    story_id=story_id,
                     date=ticket.date,
+                    title=ticket.title,
+                    path=str(path),
                 )
 
-    def list_stories(self) -> list["Story"]:
+    def list_stories(self) -> list[Story]:
         """
         List all stories in the repository.
 
@@ -132,7 +169,7 @@ class Tix:
         """
         return list(self.iter_stories())
 
-    def list_tasks(self) -> list["Task"]:
+    def list_tasks(self) -> list[Task]:
         """
         List all tasks across all stories in the repository.
 
@@ -142,7 +179,7 @@ class Tix:
         """
         return list(self.iter_tasks())
 
-    def list_stories_or_tasks(self) -> list["Story | Task"]:
+    def list_stories_or_tasks(self) -> list[Story | Task]:
         """
         List all stories and tasks in the repository.
 
@@ -170,7 +207,7 @@ class Tix:
         return max_id + 1
 
     # --------------------------------------------------------------------------
-    # index database related
+    # Index database methods
     # --------------------------------------------------------------------------
     @cached_property
     def path_index_db(self) -> Path:
@@ -194,22 +231,21 @@ class Tix:
 
         with orm.Session(engine) as session:
             for story in self.iter_stories():
-                story_orm = StoryORM(
+                session.add(Story(
                     id=story.id,
                     date=story.date,
                     title=story.title,
-                )
-                session.add(story_orm)
+                    path=story.path,
+                ))
 
-                # Add tasks for this story
-                for task in story.iter_tasks():
-                    task_orm = TaskORM(
-                        id=task.id,
-                        story_id=story.id,
-                        date=task.date,
-                        title=task.title,
-                    )
-                    session.add(task_orm)
+            for task in self.iter_tasks():
+                session.add(Task(
+                    id=task.id,
+                    story_id=task.story_id,
+                    date=task.date,
+                    title=task.title,
+                    path=task.path,
+                ))
 
             session.commit()
 
@@ -221,28 +257,28 @@ class Tix:
             self.rebuild_index_db()
 
     # --------------------------------------------------------------------------
-    # Story
+    # Story CRUD
     # --------------------------------------------------------------------------
-    def _add_story_to_index(self, story: "Story"):
+    def _add_story_to_index(self, story: Story):
         """
         Add a story to the index database.
 
         :param story: Story object to add
         """
         with orm.Session(self.engine) as session:
-            story_orm = StoryORM(
+            session.add(Story(
                 id=story.id,
                 date=story.date,
                 title=story.title,
-            )
-            session.add(story_orm)
+                path=story.path,
+            ))
             session.commit()
 
     def create_story(
         self,
         title: str,
         description: str | None = None,
-    ) -> "Story":
+    ) -> Story:
         """
         Create a new story with auto-generated ID.
 
@@ -262,7 +298,7 @@ class Tix:
         story_id = self.get_next_id()
 
         # Check if ID already exists in database
-        if self._query_story_from_db(story_id) is not None:
+        if self.query_story(story_id) is not None:
             raise StoryAlreadyExistsError(f"Story with ID {story_id} already exists")
 
         # Build folder name and create story
@@ -275,10 +311,10 @@ class Tix:
         dir_root = self.dir_stories / folder_name
 
         story = Story(
-            dir_root=dir_root,
             id=story_id,
-            title=sanitized_title,
             date=date_str,
+            title=sanitized_title,
+            path=str(dir_root),
         )
         story.write_metadata()
 
@@ -290,34 +326,6 @@ class Tix:
         self._add_story_to_index(story)
 
         return story
-
-    def _query_story_from_db(self, id: int) -> "Story | None":
-        """
-        Query a story from the SQLite index database.
-
-        :param id: Story ID to query
-
-        :returns: Story object if found, None otherwise
-        """
-        self.ensure_index_db()
-
-        engine = self.engine
-        with orm.Session(engine) as session:
-            story_orm = session.get(StoryORM, id)
-            if story_orm is None:
-                return None
-
-            # Reconstruct folder path: story-{date}-{id:05d}-{title}
-            folder_name = (
-                f"story-{story_orm.date}-{str(story_orm.id).zfill(ZERO_PADDING)}-{story_orm.title}"
-            )
-            dir_root = self.dir_stories / folder_name
-            return Story(
-                dir_root=dir_root,
-                id=story_orm.id,
-                title=story_orm.title,
-                date=story_orm.date,
-            )
 
     def get_story(self, id: int) -> Story | None:
         """
@@ -331,10 +339,69 @@ class Tix:
         :returns: Story object if found, None otherwise
         """
         # First attempt
-        story = self._query_story_from_db(id)
+        story = self.query_story(id)
         if story is not None:
             return story
 
         # Rebuild index and try again
         self.rebuild_index_db()
-        return self._query_story_from_db(id)
+        return self.query_story(id)
+
+    # --------------------------------------------------------------------------
+    # Database Query Methods (use within context manager)
+    # --------------------------------------------------------------------------
+    def query_stories(self) -> list[Story]:
+        """
+        Query all stories from the index database.
+
+        Use within context manager to ensure database is synchronized.
+
+        :returns: List of all Story objects from database
+        """
+        with orm.Session(self.engine) as session:
+            return [
+                Story(id=s.id, date=s.date, title=s.title, path=s.path)
+                for s in session.query(Story).all()
+            ]
+
+    def query_tasks(self) -> list[Task]:
+        """
+        Query all tasks from the index database.
+
+        Use within context manager to ensure database is synchronized.
+
+        :returns: List of all Task objects from database
+        """
+        with orm.Session(self.engine) as session:
+            return [
+                Task(id=t.id, story_id=t.story_id, date=t.date, title=t.title, path=t.path)
+                for t in session.query(Task).all()
+            ]
+
+    def query_story(self, id: int) -> Story | None:
+        """
+        Query a single story by ID from the index database.
+
+        :param id: Story ID to query
+
+        :returns: Story object if found, None otherwise
+        """
+        with orm.Session(self.engine) as session:
+            s = session.get(Story, id)
+            if s is None:
+                return None
+            return Story(id=s.id, date=s.date, title=s.title, path=s.path)
+
+    def query_task(self, id: int) -> Task | None:
+        """
+        Query a single task by ID from the index database.
+
+        :param id: Task ID to query
+
+        :returns: Task object if found, None otherwise
+        """
+        with orm.Session(self.engine) as session:
+            t = session.get(Task, id)
+            if t is None:
+                return None
+            return Task(id=t.id, story_id=t.story_id, date=t.date, title=t.title, path=t.path)

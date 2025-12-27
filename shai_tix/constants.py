@@ -6,6 +6,8 @@ Constants and enumerations for the tix system.
 
 from enum import Enum
 
+ZERO_PADDING = 5
+
 
 class WordsEnum(str, Enum):
     """

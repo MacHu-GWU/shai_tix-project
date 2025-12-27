@@ -29,7 +29,10 @@ class StoryOrTask:
         except FileNotFoundError:
             return {}
 
-    def write_metadata(self, status: StatusEnum):
+    def write_metadata(
+        self,
+        status: StatusEnum = StatusEnum.TODO,
+    ):
         data = {
             MetadataKeyEnum.status.value: status.value,
         }

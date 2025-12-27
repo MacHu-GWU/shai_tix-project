@@ -40,20 +40,28 @@ dir_here = Path(__file__).absolute().parent
 dir_test_root = dir_here
 
 
-class TestTixListMethods:
+class BaseTest:
     """Test Repo list methods using the .tix test fixture."""
 
+    dir_tix = path_enum.dir_unit_test / ".tix"
+    dir_tix_source = path_enum.dir_unit_test / ".tix-source"
     tix: Tix
+
+    @classmethod
+    def _setup_class_create_tix(cls):
+        cls.dir_tix.mkdir(parents=True, exist_ok=True)
+        cls.tix = Tix(dir_root=cls.dir_tix)
+
+
+class TestTixListMethods(BaseTest):
+    """Test Repo list methods using the .tix test fixture."""
 
     @classmethod
     def setup_class(cls):
         """Set up test repo before each test."""
-        dir_tix = path_enum.dir_unit_test / ".tix"
-        dir_tix_source = path_enum.dir_unit_test / ".tix-source"
-        shutil.rmtree(dir_tix, ignore_errors=True)
-        shutil.copytree(dir_tix_source, dir_tix)
-
-        cls.tix = Tix(dir_root=dir_tix)
+        shutil.rmtree(cls.dir_tix, ignore_errors=True)
+        shutil.copytree(cls.dir_tix_source, cls.dir_tix)
+        cls._setup_class_create_tix()
 
     def test_iter_stories(self):
         """Test iterating over all stories."""
@@ -159,6 +167,16 @@ class TestTixListMethods:
         assert task12.title == "task-w"
         assert task12.date == "2025-01-03"
         assert task12.status == StatusEnum.TODO.value
+
+
+class TestTixManageStory(BaseTest):
+    """Test Repo list methods using the .tix test fixture."""
+
+    @classmethod
+    def setup_class(cls):
+        """Set up test repo before each test."""
+        shutil.rmtree(cls.dir_tix, ignore_errors=True)
+        cls._setup_class_create_tix()
 
 
 if __name__ == "__main__":

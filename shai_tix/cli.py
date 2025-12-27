@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import sys
 from pathlib import Path
 
 import fire
@@ -13,6 +14,34 @@ def _get_tix(root: str | None = None) -> Tix:
         return Tix(dir_root=Path(root).joinpath(".tix"))
     else:
         return Tix(dir_root=Path.cwd().absolute().joinpath(".tix"))
+
+
+def _parse_status_list(status: str | tuple | None) -> list[StatusEnum] | None:
+    """
+    Parse status parameter into list of StatusEnum.
+
+    Handles both string (comma-separated) and tuple inputs from fire.
+    """
+    if status is None:
+        return None
+    if isinstance(status, tuple):
+        # fire may parse "TODO,IN_PROGRESS" as a tuple
+        return [StatusEnum(s.strip()) for s in status]
+    return [StatusEnum(s.strip()) for s in status.split(",")]
+
+
+def _parse_status_enum(status: str | None) -> StatusEnum | None:
+    """
+    Parse single status string into StatusEnum with error handling.
+    """
+    if status is None:
+        return None
+    try:
+        return StatusEnum(status)
+    except ValueError:
+        valid = ", ".join([s.value for s in StatusEnum])
+        print(f"Error: Invalid status '{status}'. Valid values: {valid}")
+        sys.exit(1)
 
 
 class Cli:
@@ -91,7 +120,12 @@ class Cli:
         """
         tix = _get_tix(root)
         tix.ensure_index_db()
-        status_list = [StatusEnum(s.strip()) for s in status.split(",")] if status else None
+        try:
+            status_list = _parse_status_list(status)
+        except ValueError as e:
+            valid = ", ".join([s.value for s in StatusEnum])
+            print(f"Error: Invalid status value. Valid values: {valid}")
+            sys.exit(1)
         stories = tix.search_stories(
             title=title,
             date_lower=date_lower,
@@ -160,7 +194,7 @@ class Cli:
         :param root: Project root directory (default: current directory).
         """
         tix = _get_tix(root)
-        status_enum = StatusEnum(status) if status else None
+        status_enum = _parse_status_enum(status)
         story = tix.update_story(
             id=id,
             title=title,
@@ -255,7 +289,12 @@ class Cli:
         """
         tix = _get_tix(root)
         tix.ensure_index_db()
-        status_list = [StatusEnum(s.strip()) for s in status.split(",")] if status else None
+        try:
+            status_list = _parse_status_list(status)
+        except ValueError as e:
+            valid = ", ".join([s.value for s in StatusEnum])
+            print(f"Error: Invalid status value. Valid values: {valid}")
+            sys.exit(1)
         tasks = tix.search_tasks(
             title=title,
             date_lower=date_lower,
@@ -284,8 +323,12 @@ class Cli:
         :param root: Project root directory (default: current directory).
         """
         tix = _get_tix(root)
-        task = tix.create_task(story_id=story_id, title=title, description=description)
-        print(f"Created task [{task.id}] {task.title}")
+        try:
+            task = tix.create_task(story_id=story_id, title=title, description=description)
+            print(f"Created task [{task.id}] {task.title}")
+        except ValueError as e:
+            print(f"Error: {e}")
+            sys.exit(1)
 
     def get_task(
         self,
@@ -327,7 +370,7 @@ class Cli:
         :param root: Project root directory (default: current directory).
         """
         tix = _get_tix(root)
-        status_enum = StatusEnum(status) if status else None
+        status_enum = _parse_status_enum(status)
         task = tix.update_task(
             id=id,
             title=title,

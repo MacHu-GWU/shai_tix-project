@@ -204,3 +204,111 @@ for both stories and tasks:
     results = tix.search_stories(title="auth")
     for s in results:
         print(f"[{s.id}] {s.title}")
+
+
+CLI Interface (For AI Agents)
+------------------------------------------------------------------------------
+
+The ``shai-tix`` command-line interface is designed for AI agents (like Claude Code)
+to interact with the task management system. It provides a simple, text-based
+interface that AI can easily parse and use.
+
+**Installation:**
+
+After installing the package, the ``shai-tix`` command becomes available::
+
+    pip install shai-tix
+
+**Usage:**
+
+By default, all commands operate on the ``.tix`` directory in the current
+working directory. Use ``--root`` to specify a different project root::
+
+    # Use current directory
+    shai-tix list_stories
+
+    # Use specific project root
+    shai-tix list_stories --root /path/to/project
+
+
+Story Commands
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Command
+     - Description
+   * - ``list_stories [--limit] [--root]``
+     - List all stories (default limit: 20)
+   * - ``search_stories [--title] [--date_lower] [--date_upper] [--id_lower] [--id_upper] [--limit] [--root]``
+     - Search stories by filters
+   * - ``create_story <title> [--description] [--root]``
+     - Create a new story
+   * - ``get_story <id> [--root]``
+     - Get story details by ID
+   * - ``update_story <id> [--title] [--status] [--description] [--report] [--root]``
+     - Update story fields
+   * - ``delete_story <id> [--root]``
+     - Delete a story and all its tasks
+
+
+Task Commands
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Command
+     - Description
+   * - ``list_tasks [--limit] [--root]``
+     - List all tasks (default limit: 20)
+   * - ``list_tasks_by_story <story_id> [--limit] [--root]``
+     - List tasks under a specific story
+   * - ``search_tasks [--title] [--date_lower] [--date_upper] [--id_lower] [--id_upper] [--limit] [--root]``
+     - Search tasks by filters
+   * - ``create_task <story_id> <title> [--description] [--root]``
+     - Create a new task under a story
+   * - ``get_task <id> [--root]``
+     - Get task details by ID
+   * - ``update_task <id> [--title] [--status] [--description] [--report] [--root]``
+     - Update task fields
+   * - ``delete_task <id> [--root]``
+     - Delete a task
+
+
+Status Values
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Valid status values for ``--status`` parameter:
+
+- ``TODO`` - Task is planned but not started
+- ``IN_PROGRESS`` - Task is currently being worked on
+- ``COMPLETED`` - Task is finished
+- ``BLOCKED`` - Task is blocked by external dependencies
+- ``CANCELED`` - Task has been canceled
+
+
+Example Workflow
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    # Create a story
+    shai-tix create_story "Implement user authentication" --description "Add login/logout"
+
+    # Create tasks under the story
+    shai-tix create_task 1 "Create login form" --description "HTML form with validation"
+    shai-tix create_task 1 "Add session management"
+
+    # List tasks for the story
+    shai-tix list_tasks_by_story 1
+
+    # Update task status
+    shai-tix update_task 2 --status IN_PROGRESS
+    shai-tix update_task 2 --status COMPLETED --report "Login form implemented"
+
+    # Search for tasks
+    shai-tix search_tasks --title "login"

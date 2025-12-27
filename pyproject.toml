@@ -107,7 +107,7 @@ Download = "https://pypi.org/pypi/shai-tix#files"
 
 # For command line interface, read: https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#creating-executable-scripts
 [project.scripts]
-shai-py = "shai_tix.cli:run"
+shai-tix = "shai_tix.cli:run"
 
 [tool.poetry.requires-plugins]
 poetry-plugin-export = ">=1.9.0,<2.0.0"

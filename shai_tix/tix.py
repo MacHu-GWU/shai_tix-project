@@ -243,12 +243,12 @@ class Tix:
 
         Use within context manager to ensure database is synchronized.
 
-        :returns: List of all Story objects from database
+        :returns: List of all Story objects from database, sorted by ID descending
         """
         with orm.Session(self.engine) as session:
             return [
                 Story(id=s.id, date=s.date, title=s.title, path=s.path)
-                for s in session.query(Story).all()
+                for s in session.query(Story).order_by(Story.id.desc()).all()
             ]
 
     def query_tasks(self) -> list[Task]:
@@ -257,7 +257,7 @@ class Tix:
 
         Use within context manager to ensure database is synchronized.
 
-        :returns: List of all Task objects from database
+        :returns: List of all Task objects from database, sorted by ID descending
         """
         with orm.Session(self.engine) as session:
             return [
@@ -268,7 +268,7 @@ class Tix:
                     title=t.title,
                     path=t.path,
                 )
-                for t in session.query(Task).all()
+                for t in session.query(Task).order_by(Task.id.desc()).all()
             ]
 
     def query_story(self, id: int) -> Story | None:
@@ -863,7 +863,7 @@ class Tix:
 
         :param story_id: Parent story ID
 
-        :returns: List of Task objects belonging to the story
+        :returns: List of Task objects belonging to the story, sorted by ID descending
         """
         with orm.Session(self.engine) as session:
             return [
@@ -874,5 +874,5 @@ class Tix:
                     title=t.title,
                     path=t.path,
                 )
-                for t in session.query(Task).where(Task.story_id == story_id).all()
+                for t in session.query(Task).where(Task.story_id == story_id).order_by(Task.id.desc()).all()
             ]

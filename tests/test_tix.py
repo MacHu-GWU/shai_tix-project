@@ -194,6 +194,173 @@ class TestTixQueryMethods:
         assert result is None
 
 
+class TestTixSearchMethods:
+    """Test search_stories and search_tasks methods."""
+
+    def test_search_stories_by_title(self, tix_session):
+        """Test searching stories by title with token matching."""
+        tix = tix_session
+
+        # Create stories with various titles
+        tix.create_story(title="Login Feature Implementation")
+        tix.create_story(title="User Authentication")
+        tix.create_story(title="Database Migration")
+
+        # Search by single token
+        results = tix.search_stories(title="login")
+        assert len(results) == 1
+        assert results[0].title == "Login Feature Implementation"
+
+        # Search by partial match (any token)
+        results = tix.search_stories(title="user")
+        assert len(results) == 1
+        assert results[0].title == "User Authentication"
+
+        # Search with special characters (should tokenize)
+        results = tix.search_stories(title="database!")
+        assert len(results) == 1
+        assert results[0].title == "Database Migration"
+
+        # Search no match
+        results = tix.search_stories(title="nonexistent")
+        assert len(results) == 0
+
+    def test_search_stories_by_date_range(self, tix_session):
+        """Test searching stories by date range."""
+        tix = tix_session
+
+        # Create stories (all created today with same date)
+        s1 = tix.create_story(title="Story One")
+        s2 = tix.create_story(title="Story Two")
+        today = s1.date
+
+        # Search by date range including today
+        results = tix.search_stories(date_lower=today, date_upper=today)
+        assert len(results) == 2
+
+        # Search by date range excluding (future date)
+        results = tix.search_stories(date_lower="2099-01-01")
+        assert len(results) == 0
+
+    def test_search_stories_by_id_range(self, tix_session):
+        """Test searching stories by ID range."""
+        tix = tix_session
+
+        # Create stories
+        s1 = tix.create_story(title="First")
+        s2 = tix.create_story(title="Second")
+        s3 = tix.create_story(title="Third")
+
+        # Search by ID range
+        results = tix.search_stories(id_lower=s1.id, id_upper=s2.id)
+        assert len(results) == 2
+        # Results should be sorted by ID descending
+        assert results[0].id == s2.id
+        assert results[1].id == s1.id
+
+        # Search single ID
+        results = tix.search_stories(id_lower=s3.id, id_upper=s3.id)
+        assert len(results) == 1
+        assert results[0].id == s3.id
+
+    def test_search_stories_combined_filters(self, tix_session):
+        """Test searching stories with multiple filters."""
+        tix = tix_session
+
+        # Create stories
+        s1 = tix.create_story(title="Login Feature")
+        s2 = tix.create_story(title="Login Bug Fix")
+        s3 = tix.create_story(title="Database Setup")
+
+        # Search with title and ID range
+        results = tix.search_stories(title="login", id_upper=s2.id)
+        assert len(results) == 2
+
+        # Search with title that excludes one
+        results = tix.search_stories(title="feature")
+        assert len(results) == 1
+        assert results[0].title == "Login Feature"
+
+    def test_search_stories_sorted_by_id_desc(self, tix_session):
+        """Test search results are sorted by ID descending."""
+        tix = tix_session
+
+        # Create stories
+        s1 = tix.create_story(title="Alpha")
+        s2 = tix.create_story(title="Beta")
+        s3 = tix.create_story(title="Gamma")
+
+        # Search all
+        results = tix.search_stories(id_lower=1)
+        assert len(results) == 3
+        assert results[0].id == s3.id  # Newest first
+        assert results[1].id == s2.id
+        assert results[2].id == s1.id
+
+    def test_search_stories_no_params_raises_error(self, tix_session):
+        """Test search_stories raises error when no parameters provided."""
+        tix = tix_session
+        with pytest.raises(ValueError, match="At least one search parameter"):
+            tix.search_stories()
+
+    def test_search_tasks_by_title(self, tix_session):
+        """Test searching tasks by title with token matching."""
+        tix = tix_session
+
+        # Create story and tasks
+        story = tix.create_story(title="Parent Story")
+        tix.create_task(story_id=story.id, title="Write Unit Tests")
+        tix.create_task(story_id=story.id, title="Write Integration Tests")
+        tix.create_task(story_id=story.id, title="Fix Bug")
+
+        # Search by token
+        results = tix.search_tasks(title="write")
+        assert len(results) == 2
+
+        # Search by different token
+        results = tix.search_tasks(title="bug")
+        assert len(results) == 1
+        assert results[0].title == "Fix Bug"
+
+    def test_search_tasks_by_id_range(self, tix_session):
+        """Test searching tasks by ID range."""
+        tix = tix_session
+
+        story = tix.create_story(title="Story")
+        t1 = tix.create_task(story_id=story.id, title="Task One")
+        t2 = tix.create_task(story_id=story.id, title="Task Two")
+        t3 = tix.create_task(story_id=story.id, title="Task Three")
+
+        # Search by ID range
+        results = tix.search_tasks(id_lower=t2.id, id_upper=t3.id)
+        assert len(results) == 2
+        # Sorted by ID descending
+        assert results[0].id == t3.id
+        assert results[1].id == t2.id
+
+    def test_search_tasks_by_date_range(self, tix_session):
+        """Test searching tasks by date range."""
+        tix = tix_session
+
+        story = tix.create_story(title="Story")
+        t1 = tix.create_task(story_id=story.id, title="Task")
+        today = t1.date
+
+        # Search including today
+        results = tix.search_tasks(date_lower=today)
+        assert len(results) == 1
+
+        # Search excluding (past date upper bound)
+        results = tix.search_tasks(date_upper="2000-01-01")
+        assert len(results) == 0
+
+    def test_search_tasks_no_params_raises_error(self, tix_session):
+        """Test search_tasks raises error when no parameters provided."""
+        tix = tix_session
+        with pytest.raises(ValueError, match="At least one search parameter"):
+            tix.search_tasks()
+
+
 class TestTixManageStory:
     """Test Story CRUD operations with a complete workflow."""
 

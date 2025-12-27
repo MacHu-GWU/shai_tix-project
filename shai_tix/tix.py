@@ -301,6 +301,156 @@ class Tix:
                 id=t.id, story_id=t.story_id, date=t.date, title=t.title, path=t.path
             )
 
+    def _tokenize_title(self, title: str) -> set[str]:
+        """
+        Tokenize a title string for search matching.
+
+        Splits on spaces and special characters, converts to lowercase.
+
+        :param title: Title string to tokenize
+
+        :returns: Set of lowercase tokens
+        """
+        # Replace non-alphanumeric characters with spaces, then split
+        chars = [c.lower() if c.isalnum() else " " for c in title]
+        return set("".join(chars).split())
+
+    def _title_matches(self, entity_title: str, search_tokens: set[str]) -> bool:
+        """
+        Check if entity title matches any of the search tokens.
+
+        :param entity_title: Title from the entity (Story/Task)
+        :param search_tokens: Set of tokens to match against
+
+        :returns: True if any token matches
+        """
+        entity_tokens = self._tokenize_title(entity_title)
+        return bool(entity_tokens & search_tokens)
+
+    def search_stories(
+        self,
+        title: str | None = None,
+        date_lower: str | None = None,
+        date_upper: str | None = None,
+        id_lower: int | None = None,
+        id_upper: int | None = None,
+    ) -> list[Story]:
+        """
+        Search stories by title, date range, and/or ID range.
+
+        At least one parameter must be provided. Results are sorted by ID
+        descending (newest first).
+
+        Title matching: tokenizes the search string (splits on spaces and
+        special characters, lowercases), matches if any token appears in
+        the story title.
+
+        :param title: Search string to match against story titles
+        :param date_lower: Minimum date (inclusive), format YYYY-MM-DD
+        :param date_upper: Maximum date (inclusive), format YYYY-MM-DD
+        :param id_lower: Minimum ID (inclusive)
+        :param id_upper: Maximum ID (inclusive)
+
+        :returns: List of matching Story objects, sorted by ID descending
+
+        :raises ValueError: If all parameters are None
+        """
+        if all(p is None for p in [title, date_lower, date_upper, id_lower, id_upper]):
+            raise ValueError("At least one search parameter must be provided")
+
+        search_tokens = self._tokenize_title(title) if title else None
+
+        with orm.Session(self.engine) as session:
+            query = session.query(Story)
+
+            if id_lower is not None:
+                query = query.where(Story.id >= id_lower)
+            if id_upper is not None:
+                query = query.where(Story.id <= id_upper)
+            if date_lower is not None:
+                query = query.where(Story.date >= date_lower)
+            if date_upper is not None:
+                query = query.where(Story.date <= date_upper)
+
+            # Sort by ID descending (newest first)
+            query = query.order_by(Story.id.desc())
+
+            results = []
+            for s in query.all():
+                # Apply title filter in Python (token matching)
+                if search_tokens and not self._title_matches(s.title, search_tokens):
+                    continue
+                results.append(
+                    Story(id=s.id, date=s.date, title=s.title, path=s.path)
+                )
+
+            return results
+
+    def search_tasks(
+        self,
+        title: str | None = None,
+        date_lower: str | None = None,
+        date_upper: str | None = None,
+        id_lower: int | None = None,
+        id_upper: int | None = None,
+    ) -> list[Task]:
+        """
+        Search tasks by title, date range, and/or ID range.
+
+        At least one parameter must be provided. Results are sorted by ID
+        descending (newest first).
+
+        Title matching: tokenizes the search string (splits on spaces and
+        special characters, lowercases), matches if any token appears in
+        the task title.
+
+        :param title: Search string to match against task titles
+        :param date_lower: Minimum date (inclusive), format YYYY-MM-DD
+        :param date_upper: Maximum date (inclusive), format YYYY-MM-DD
+        :param id_lower: Minimum ID (inclusive)
+        :param id_upper: Maximum ID (inclusive)
+
+        :returns: List of matching Task objects, sorted by ID descending
+
+        :raises ValueError: If all parameters are None
+        """
+        if all(p is None for p in [title, date_lower, date_upper, id_lower, id_upper]):
+            raise ValueError("At least one search parameter must be provided")
+
+        search_tokens = self._tokenize_title(title) if title else None
+
+        with orm.Session(self.engine) as session:
+            query = session.query(Task)
+
+            if id_lower is not None:
+                query = query.where(Task.id >= id_lower)
+            if id_upper is not None:
+                query = query.where(Task.id <= id_upper)
+            if date_lower is not None:
+                query = query.where(Task.date >= date_lower)
+            if date_upper is not None:
+                query = query.where(Task.date <= date_upper)
+
+            # Sort by ID descending (newest first)
+            query = query.order_by(Task.id.desc())
+
+            results = []
+            for t in query.all():
+                # Apply title filter in Python (token matching)
+                if search_tokens and not self._title_matches(t.title, search_tokens):
+                    continue
+                results.append(
+                    Task(
+                        id=t.id,
+                        story_id=t.story_id,
+                        date=t.date,
+                        title=t.title,
+                        path=t.path,
+                    )
+                )
+
+            return results
+
     # --------------------------------------------------------------------------
     # Story CRUD
     # --------------------------------------------------------------------------

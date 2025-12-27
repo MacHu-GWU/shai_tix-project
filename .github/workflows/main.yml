@@ -8,10 +8,10 @@ name: CI
 # Define the events that will trigger this workflow to run
 # ref: https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#on
 on:
-#  push: # Workflow will run on any push event to the main branch
-#    branches: ["main"]
-#  pull_request: # Workflow will run on any pull request targeting the main branch
-#    branches: ["main"]
+  push: # Workflow will run on any push event to the main branch
+    branches: ["main"]
+  pull_request: # Workflow will run on any pull request targeting the main branch
+    branches: ["main"]
   workflow_dispatch: # Allows you to manually trigger the workflow from the GitHub UI
 
 # ------------------------------------------------------------------------------

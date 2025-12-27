@@ -11,6 +11,7 @@ sub packages and modules
     :maxdepth: 1
 
     api <api>
+    cli <cli>
     constants <constants>
     db <db>
     tix <tix>

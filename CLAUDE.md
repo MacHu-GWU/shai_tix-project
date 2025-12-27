@@ -6,7 +6,7 @@ See @README.rst for complete project overview.
 
 ## Core Development Guides
 
-See @./docs/source/design.md for solution design.
+See @./docs/source/Maintainer-Guide/index.rst for Source Code Architecture design.
 
 ### Python Development Standards
 

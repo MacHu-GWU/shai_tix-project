@@ -12,8 +12,8 @@ class WordsEnum(str, Enum):
     Common words used in folder and file naming conventions.
     """
 
-    STORIES = "stories"
-    TASKS = "tasks"
+    stories = "stories"
+    tasks = "tasks"
     story = "story"
     task = "task"
 

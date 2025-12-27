@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import typing as T
+from typing import Literal
 import re
 import string
 import dataclasses
@@ -31,21 +32,33 @@ def sanitize_title(title: str) -> str:
 
 
 def build_folder_name(
+    type: Literal["story", "task"],
+    date: str,
     id: int,
-    title: str,
+    sanitized_title: str,
 ) -> str:
-    utc_now = datetime.now(timezone.utc)
-    sanitized_title = sanitize_title(title)
-    return f"{utc_now.date()}-{str(id).zfill(ZERO_PADDING)}-{sanitized_title}"
+    """
+    Build a folder name for a story or task.
+
+    Constructs a folder name in the format: ``{type}-{date}-{id}-{sanitized_title}``
+
+    :param type: Entity type ("story" or "task")
+    :param date: Creation date in YYYY-MM-DD format
+    :param id: Global ID (will be zero-padded)
+    :param sanitized_title: Pre-sanitized title string
+
+    :returns: Folder name string
+    """
+    return f"{type}-{date}-{str(id).zfill(ZERO_PADDING)}-{sanitized_title}"
 
 
-# Pattern: (story|task)-YYYY-MM-DD-NNNNN-sanitized-title (5-digit ID)
+# Pattern: (story|task)-YYYY-MM-DD-ID-sanitized-title
 # Groups: (1) type, (2) date, (3) id, (4) title
+# Note: ID accepts any number of digits for flexibility (5-digit, 6-digit, etc.)
+# The id is converted to int() after extraction
 folder_pattern = re.compile(
     f"({WordsEnum.story.value}|{WordsEnum.task.value})"
-    + r"-(\d{4}-\d{2}-\d{2})-(\d{"
-    + str(ZERO_PADDING)
-    + r"})-(.+)$"
+    + r"-(\d{4}-\d{2}-\d{2})-(\d+)-(.+)$"
 )
 
 

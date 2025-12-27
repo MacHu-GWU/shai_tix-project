@@ -65,10 +65,12 @@ class TestTicketFromFolder:
         folder = Path("story-25-12-26-000001-some-title")
         assert Ticket.from_folder(folder) is None
 
-    def test_invalid_id_format_returns_none(self):
-        """Test that non-6-digit ID returns None."""
+    def test_single_digit_id_is_valid(self):
+        """Test that any digit count for ID is valid (flexibility for 5/6 digit)."""
         folder = Path("story-2025-12-26-1-some-title")
-        assert Ticket.from_folder(folder) is None
+        ticket = Ticket.from_folder(folder)
+        assert ticket is not None
+        assert ticket.id == 1
 
     def test_missing_title_returns_none(self):
         """Test that missing title returns None."""

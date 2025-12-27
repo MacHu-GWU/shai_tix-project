@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import shutil
 import dataclasses
 from pathlib import Path
 from functools import cached_property
@@ -9,9 +10,9 @@ from contextlib import contextmanager
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
 
-from .constants import ZERO_PADDING, WordsEnum
+from .constants import WordsEnum, StatusEnum
 from .db import Base, Story, Task
-from .utils import sanitize_title, Ticket
+from .utils import sanitize_title, build_folder_name, Ticket
 
 
 class StoryAlreadyExistsError(Exception):
@@ -74,7 +75,7 @@ class Tix:
                         id=ticket.id,
                         date=ticket.date,
                         title=ticket.title,
-                        _dir_root=folder,
+                        path=str(folder),
                     )
 
     def iter_tasks(self):
@@ -105,7 +106,7 @@ class Tix:
                         story_id=story_id,
                         date=ticket.date,
                         title=ticket.title,
-                        _dir_root=folder,
+                        path=str(folder),
                     )
 
     def iter_stories_or_tasks(self):
@@ -146,7 +147,7 @@ class Tix:
                     id=ticket.id,
                     date=ticket.date,
                     title=ticket.title,
-                    _dir_root=path,
+                    path=str(path),
                 )
             elif ticket.type == WordsEnum.task.value:
                 # Get story_id from parent folder
@@ -158,53 +159,8 @@ class Tix:
                     story_id=story_id,
                     date=ticket.date,
                     title=ticket.title,
-                    _dir_root=path,
+                    path=str(path),
                 )
-
-    def list_stories(self) -> list[Story]:
-        """
-        List all stories in the repository.
-
-        :returns: List of all Story objects
-        """
-        return list(self.iter_stories())
-
-    def list_tasks(self) -> list[Task]:
-        """
-        List all tasks across all stories in the repository.
-
-        Directly scans all task folders for better efficiency.
-
-        :returns: List of all Task objects
-        """
-        return list(self.iter_tasks())
-
-    def list_stories_or_tasks(self) -> list[Story | Task]:
-        """
-        List all stories and tasks in the repository.
-
-        Uses single directory scan for better efficiency.
-
-        :returns: List containing both Story and Task objects
-        """
-        return list(self.iter_stories_or_tasks())
-
-    def get_next_id(self) -> int:
-        """
-        Get the next available ID by scanning existing story and task folders.
-
-        Stories and tasks share the same global ID space. This method scans
-        all existing entities and returns max_id + 1. If no entities exist,
-        returns 1.
-
-        :returns: Next available global ID
-        """
-        max_id = 0
-        for story in self.iter_stories():
-            max_id = max(max_id, story.id)
-        for task in self.iter_tasks():
-            max_id = max(max_id, task.id)
-        return max_id + 1
 
     # --------------------------------------------------------------------------
     # Index database methods
@@ -259,20 +215,21 @@ class Tix:
     # --------------------------------------------------------------------------
     # Story CRUD
     # --------------------------------------------------------------------------
-    def _add_story_to_index(self, story: Story):
+    def get_next_id(self) -> int:
         """
-        Add a story to the index database.
+        Get the next available ID from the index database.
 
-        :param story: Story object to add
+        Stories and tasks share the same global ID space. This method queries
+        the database for max ID and returns max_id + 1. If no entities exist,
+        returns 1.
+
+        :returns: Next available global ID
         """
+        self.ensure_index_db()
         with orm.Session(self.engine) as session:
-            session.add(Story(
-                id=story.id,
-                date=story.date,
-                title=story.title,
-                path=story.path,
-            ))
-            session.commit()
+            max_story_id = session.query(sa.func.max(Story.id)).scalar() or 0
+            max_task_id = session.query(sa.func.max(Task.id)).scalar() or 0
+            return max(max_story_id, max_task_id) + 1
 
     def create_story(
         self,
@@ -297,35 +254,42 @@ class Tix:
         # Get next ID
         story_id = self.get_next_id()
 
-        # Check if ID already exists in database
-        if self.query_story(story_id) is not None:
-            raise StoryAlreadyExistsError(f"Story with ID {story_id} already exists")
-
-        # Build folder name and create story
+        # Build folder name (sanitized_title is only used for folder naming)
         utc_now = datetime.now(timezone.utc)
         date_str = str(utc_now.date())
         sanitized_title = sanitize_title(title)
-        folder_name = (
-            f"story-{date_str}-{str(story_id).zfill(ZERO_PADDING)}-{sanitized_title}"
+        folder_name = build_folder_name(
+            type=WordsEnum.story.value,
+            date=date_str,
+            id=story_id,
+            sanitized_title=sanitized_title,
         )
         dir_root = self.dir_stories / folder_name
 
-        story = Story(
+        # Create Story, write filesystem artifacts, and add to database
+        with orm.Session(self.engine) as session:
+            # Story.title stores the original title, not sanitized
+            story = Story(
+                id=story_id,
+                date=date_str,
+                title=title,
+                path=str(dir_root),
+            )
+            story.write_metadata()
+
+            if description:
+                story.write_description(description)
+
+            session.add(story)
+            session.commit()
+
+        # Return a fresh detached Story object
+        return Story(
             id=story_id,
             date=date_str,
-            title=sanitized_title,
+            title=title,
             path=str(dir_root),
         )
-        story.write_metadata()
-
-        # Write description if provided
-        if description:
-            story.write_description(description)
-
-        # Add to index database
-        self._add_story_to_index(story)
-
-        return story
 
     def get_story(self, id: int) -> Story | None:
         """
@@ -346,6 +310,250 @@ class Tix:
         # Rebuild index and try again
         self.rebuild_index_db()
         return self.query_story(id)
+
+    def update_story(
+        self,
+        id: int,
+        title: str | None = None,
+        status: StatusEnum | None = None,
+        description: str | None = None,
+        report: str | None = None,
+    ) -> Story | None:
+        """
+        Update a story's metadata and content files.
+
+        Supports updating title, status, description, and report. When title
+        changes, the story folder is renamed accordingly.
+
+        :param id: Story ID to update
+        :param title: New title (optional, triggers folder rename)
+        :param status: New status value (optional)
+        :param description: New description content (optional)
+        :param report: New report content (optional)
+
+        :returns: Updated Story object, or None if story not found
+        """
+        story = self.query_story(id)
+        if story is None:
+            return None
+
+        new_title = title if title is not None else story.title
+        new_path = story.path
+
+        # Handle title change - requires folder rename
+        if title is not None and title != story.title:
+            # Build new folder name with sanitized title
+            sanitized_title = sanitize_title(title)
+            new_folder_name = build_folder_name(
+                type=WordsEnum.story.value,
+                date=story.date,
+                id=story.id,
+                sanitized_title=sanitized_title,
+            )
+            new_dir = self.dir_stories / new_folder_name
+
+            is_folder_changed = (new_dir != story.dir_root)
+
+            if is_folder_changed:
+                shutil.move(str(story.dir_root), str(new_dir))
+                new_path = str(new_dir)
+
+                # TODO: When story path changes, all tasks under it also have their
+                # filesystem paths changed. We need to update Task.path in the database
+                # for all tasks belonging to this story. Not implemented yet.
+
+            # Update title (and path if folder changed) in database
+            with orm.Session(self.engine) as session:
+                if is_folder_changed:
+                    session.execute(
+                        sa.update(Story).where(Story.id == id).values(title=title, path=new_path)
+                    )
+                else:
+                    session.execute(
+                        sa.update(Story).where(Story.id == id).values(title=title)
+                    )
+                session.commit()
+
+        # Create a temporary Story object to access filesystem methods
+        temp_story = Story(
+            id=story.id,
+            date=story.date,
+            title=new_title,
+            path=new_path,
+        )
+
+        # Update metadata file if status provided
+        if status is not None:
+            temp_story.write_metadata(status=status)
+
+        # Update description file if provided
+        if description is not None:
+            temp_story.write_description(description)
+
+        # Update report file if provided
+        if report is not None:
+            temp_story.write_report(report)
+
+        # Return a fresh detached Story object
+        return temp_story
+
+    def delete_story(self, id: int) -> bool:
+        """
+        Delete a story by ID from filesystem and index database.
+
+        Removes the story directory and all its tasks from filesystem,
+        then removes the story from the index database.
+
+        :param id: Story ID to delete
+
+        :returns: True if deleted, False if story not found
+        """
+        story = self.query_story(id)
+        if story is None:
+            return False
+
+        # Delete from filesystem
+        if story.dir_root.exists():
+            shutil.rmtree(story.dir_root)
+
+        # Delete from database
+        with orm.Session(self.engine) as session:
+            # Delete tasks first (cascade)
+            session.execute(sa.delete(Task).where(Task.story_id == id))
+            session.execute(sa.delete(Story).where(Story.id == id))
+            session.commit()
+
+        # TODO: delete all tasks under this story from the database as well
+
+        return True
+
+    # --------------------------------------------------------------------------
+    # Task CRUD
+    # --------------------------------------------------------------------------
+    def create_task(
+        self,
+        story_id: int,
+        title: str,
+        description: str | None = None,
+    ) -> Task:
+        """
+        Create a new task under a story with auto-generated ID.
+
+        :param story_id: Parent story ID
+        :param title: Task title
+        :param description: Optional task description
+
+        :returns: Created Task object
+
+        :raises ValueError: If parent story not found
+        """
+        # Ensure index exists
+        self.ensure_index_db()
+
+        # Verify parent story exists
+        story = self.query_story(story_id)
+        if story is None:
+            raise ValueError(f"Story with ID {story_id} not found")
+
+        # Get next ID
+        task_id = self.get_next_id()
+
+        # Build folder name (sanitized_title is only used for folder naming)
+        utc_now = datetime.now(timezone.utc)
+        date_str = str(utc_now.date())
+        sanitized_title = sanitize_title(title)
+        folder_name = build_folder_name(
+            type=WordsEnum.task.value,
+            date=date_str,
+            id=task_id,
+            sanitized_title=sanitized_title,
+        )
+        dir_task = story.dir_root / "tasks" / folder_name
+
+        # Create Task, write filesystem artifacts, and add to database
+        with orm.Session(self.engine) as session:
+            # Task.title stores the original title, not sanitized
+            task = Task(
+                id=task_id,
+                story_id=story_id,
+                date=date_str,
+                title=title,
+                path=str(dir_task),
+            )
+            task.write_metadata()
+
+            if description:
+                task.write_description(description)
+
+            session.add(task)
+            session.commit()
+
+        # Return a fresh detached Task object
+        return Task(
+            id=task_id,
+            story_id=story_id,
+            date=date_str,
+            title=title,
+            path=str(dir_task),
+        )
+
+    def get_task(self, id: int) -> Task | None:
+        """
+        Get a task by ID from the index database.
+
+        Queries the SQLite index database. If not found, rebuilds the index
+        and tries once more. Returns None if still not found.
+
+        :param id: Task ID to retrieve
+
+        :returns: Task object if found, None otherwise
+        """
+        # First attempt
+        task = self.query_task(id)
+        if task is not None:
+            return task
+
+        # Rebuild index and try again
+        self.rebuild_index_db()
+        return self.query_task(id)
+
+    def delete_task(self, id: int) -> bool:
+        """
+        Delete a task by ID from filesystem and index database.
+
+        :param id: Task ID to delete
+
+        :returns: True if deleted, False if task not found
+        """
+        task = self.query_task(id)
+        if task is None:
+            return False
+
+        # Delete from filesystem
+        import shutil
+        if task.dir_root.exists():
+            shutil.rmtree(task.dir_root)
+
+        # Delete from database
+        with orm.Session(self.engine) as session:
+            session.execute(sa.delete(Task).where(Task.id == id))
+            session.commit()
+
+        return True
+
+    def query_tasks_by_story(self, story_id: int) -> list[Task]:
+        """
+        Query all tasks belonging to a specific story.
+
+        :param story_id: Parent story ID
+
+        :returns: List of Task objects belonging to the story
+        """
+        with orm.Session(self.engine) as session:
+            return [
+                Task(id=t.id, story_id=t.story_id, date=t.date, title=t.title, path=t.path)
+                for t in session.query(Task).where(Task.story_id == story_id).all()
+            ]
 
     # --------------------------------------------------------------------------
     # Database Query Methods (use within context manager)

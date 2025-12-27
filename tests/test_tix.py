@@ -29,6 +29,8 @@ from shai_tix.tix import Tix
 import shutil
 from pathlib import Path
 
+import pytest
+
 from shai_tix.paths import path_enum
 from shai_tix.constants import StatusEnum
 from shai_tix.db import Story, Task
@@ -99,24 +101,6 @@ class TestTixIterMethods(BaseTest):
         assert len(stories) == 3
         assert len(tasks) == 9
 
-    def test_list_stories(self):
-        """Test list_stories returns correct list."""
-        stories = self.tix.list_stories()
-        assert isinstance(stories, list)
-        assert len(stories) == 3
-
-    def test_list_tasks(self):
-        """Test list_tasks returns correct list."""
-        tasks = self.tix.list_tasks()
-        assert isinstance(tasks, list)
-        assert len(tasks) == 9
-
-    def test_list_stories_or_tasks(self):
-        """Test list_stories_or_tasks returns correct list."""
-        items = self.tix.list_stories_or_tasks()
-        assert isinstance(items, list)
-        assert len(items) == 12
-
     def test_get_next_id(self):
         """Test get_next_id returns max_id + 1."""
         next_id = self.tix.get_next_id()
@@ -125,7 +109,7 @@ class TestTixIterMethods(BaseTest):
 
     def test_story_attributes(self):
         """Test story objects have correct attributes."""
-        stories = self.tix.list_stories()
+        stories = list(self.tix.iter_stories())
         story_by_id = {s.id: s for s in stories}
 
         # Check first story
@@ -148,7 +132,7 @@ class TestTixIterMethods(BaseTest):
 
     def test_task_attributes(self):
         """Test task objects have correct attributes."""
-        tasks = self.tix.list_tasks()
+        tasks = list(self.tix.iter_tasks())
         task_by_id = {t.id: t for t in tasks}
 
         # Check a task from each story
@@ -168,15 +152,190 @@ class TestTixIterMethods(BaseTest):
         assert task12.status == StatusEnum.TODO.value
 
 
-class TestTixManageStory(BaseTest):
-    """Test Repo list methods using the .tix test fixture."""
+@pytest.fixture
+def tix_session():
+    """
+    Fixture that provides a Tix instance with an active session.
+
+    Creates a fresh empty .tix directory, yields the Tix instance within
+    a session context, and cleans up afterward.
+    """
+    dir_tix = path_enum.dir_unit_test / ".tix"
+    shutil.rmtree(dir_tix, ignore_errors=True)
+    dir_tix.mkdir(parents=True, exist_ok=True)
+
+    tix = Tix(dir_root=dir_tix)
+    with tix.session():
+        yield tix
+
+
+class TestTixManageStory:
+    """Test Story CRUD operations with a complete workflow."""
+
+    def test(self, tix_session):
+        """
+        Test complete Story CRUD workflow.
+
+        Flow:
+        1. Create story with description
+        2. Verify story exists via get_story and query_story
+        3. Verify filesystem artifacts
+        4. Create second story
+        5. Verify both stories exist
+        6. Delete first story
+        7. Verify first story is gone, second remains
+        8. Delete non-existent story returns False
+        """
+        tix = tix_session
+
+        # --- Step 1: Create first story ---
+        story1 = tix.create_story(
+            title="First Story",
+            description="Description for first story.",
+        )
+        assert story1.id == 1
+        assert story1.title == "First Story"  # Original title, not sanitized
+
+        # --- Step 2: Verify story exists via get/query ---
+        fetched = tix.get_story(story1.id)
+        assert fetched is not None
+        assert fetched.id == story1.id
+        assert fetched.title == story1.title
+
+        queried = tix.query_story(story1.id)
+        assert queried is not None
+        assert queried.id == story1.id
+
+        # --- Step 3: Verify filesystem artifacts ---
+        assert story1.dir_root.exists()
+        assert story1.path_metadata.exists()
+        assert story1.path_description.exists()
+        assert "Description for first story." in story1.read_description()
+
+        # --- Step 4: Create second story ---
+        story2 = tix.create_story(title="Second Story")
+        assert story2.id == 2
+        assert story2.title == "Second Story"  # Original title, not sanitized
+
+        # --- Step 5: Verify both stories exist ---
+        stories = tix.query_stories()
+        assert len(stories) == 2
+        story_ids = {s.id for s in stories}
+        assert story_ids == {1, 2}
+
+        # --- Step 6: Delete first story ---
+        story1_path = story1.dir_root
+        result = tix.delete_story(story1.id)
+        assert result is True
+
+        # --- Step 7: Verify first story gone, second remains ---
+        assert not story1_path.exists()
+        assert tix.query_story(story1.id) is None
+        assert tix.get_story(story1.id) is None
+
+        assert tix.query_story(story2.id) is not None
+        assert story2.dir_root.exists()
+
+        stories_after = tix.query_stories()
+        assert len(stories_after) == 1
+        assert stories_after[0].id == 2
+
+        # --- Step 8: Delete non-existent story returns False ---
+        assert tix.delete_story(99999) is False
+        assert tix.delete_story(story1.id) is False  # Already deleted
+
+
+class TestTixManageTask(BaseTest):
+    """Test Task CRUD operations."""
 
     @classmethod
     def setup_class(cls):
         """Set up test repo before each test."""
         shutil.rmtree(cls.dir_tix, ignore_errors=True)
         cls._setup_class_create_tix()
+        # Create a parent story for task tests
+        cls.parent_story = cls.tix.create_story(title="Parent Story")
 
+    def test_create_task(self):
+        """Test creating a new task under a story."""
+        task = self.tix.create_task(
+            story_id=self.parent_story.id,
+            title="My Test Task",
+            description="Task description here.",
+        )
+
+        # Verify task attributes
+        assert task.story_id == self.parent_story.id
+        assert task.title == "My Test Task"  # Original title, not sanitized
+        assert task.dir_root.exists()
+
+        # Verify files created
+        assert task.path_metadata.exists()
+        assert task.path_description.exists()
+        assert "Task description here." in task.read_description()
+
+    def test_create_task_invalid_story(self):
+        """Test creating a task with invalid story ID raises error."""
+        import pytest
+        with pytest.raises(ValueError, match="Story with ID 99999 not found"):
+            self.tix.create_task(story_id=99999, title="Invalid Task")
+
+    def test_get_task(self):
+        """Test retrieving a task by ID."""
+        # Create a task first
+        created = self.tix.create_task(
+            story_id=self.parent_story.id,
+            title="Get Test Task",
+        )
+
+        # Get the task
+        task = self.tix.get_task(created.id)
+        assert task is not None
+        assert task.id == created.id
+        assert task.title == created.title
+
+        # Get non-existent task
+        assert self.tix.get_task(99999) is None
+
+    def test_delete_task(self):
+        """Test deleting a task."""
+        # Create a task
+        task = self.tix.create_task(
+            story_id=self.parent_story.id,
+            title="Delete Test Task",
+        )
+        task_path = task.dir_root
+
+        # Verify it exists
+        assert task_path.exists()
+        assert self.tix.get_task(task.id) is not None
+
+        # Delete it
+        result = self.tix.delete_task(task.id)
+        assert result is True
+
+        # Verify it's gone
+        assert not task_path.exists()
+        assert self.tix.query_task(task.id) is None
+
+        # Delete non-existent task
+        assert self.tix.delete_task(99999) is False
+
+    def test_query_tasks_by_story(self):
+        """Test querying tasks by story ID."""
+        # Create multiple tasks
+        task1 = self.tix.create_task(story_id=self.parent_story.id, title="Task A")
+        task2 = self.tix.create_task(story_id=self.parent_story.id, title="Task B")
+
+        # Query tasks by story
+        tasks = self.tix.query_tasks_by_story(self.parent_story.id)
+        task_ids = {t.id for t in tasks}
+
+        assert task1.id in task_ids
+        assert task2.id in task_ids
+
+        # Query for non-existent story
+        assert len(self.tix.query_tasks_by_story(99999)) == 0
 
 
 if __name__ == "__main__":

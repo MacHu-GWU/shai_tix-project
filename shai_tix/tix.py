@@ -307,9 +307,9 @@ class Tix:
             if story_orm is None:
                 return None
 
-            # Reconstruct folder path: story-{date}-{id:06d}-{title}
+            # Reconstruct folder path: story-{date}-{id:05d}-{title}
             folder_name = (
-                f"story-{story_orm.date}-{str(story_orm.id).zfill(6)}-{story_orm.title}"
+                f"story-{story_orm.date}-{str(story_orm.id).zfill(ZERO_PADDING)}-{story_orm.title}"
             )
             dir_root = self.dir_stories / folder_name
             return Story(

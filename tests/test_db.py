@@ -32,6 +32,7 @@ class TestStoryTaskRelationship:
                 id=1,
                 date="2025-01-01",
                 title="my-first-story",
+                path="/tmp/story-2025-01-01-000001-my-first-story",
             )
 
             # Create 2 tasks linked to the story
@@ -40,12 +41,14 @@ class TestStoryTaskRelationship:
                 story_id=1,
                 date="2025-01-01",
                 title="task-one",
+                path="/tmp/story-2025-01-01-000001-my-first-story/tasks/task-2025-01-01-000002-task-one",
             )
             task2 = Task(
                 id=3,
                 story_id=1,
                 date="2025-01-01",
                 title="task-two",
+                path="/tmp/story-2025-01-01-000001-my-first-story/tasks/task-2025-01-01-000003-task-two",
             )
 
             # Add story (tasks will be added via relationship)
@@ -74,28 +77,15 @@ class TestStoryTaskRelationship:
 class TestStoryOrTaskFileIO:
     """Test file I/O methods in StoryOrTask base class."""
 
-    def test_dir_root_not_set_raises_error(self):
-        """Test accessing dir_root without setting it raises ValueError."""
-        story = Story(
-            id=1,
-            date="2025-01-01",
-            title="test-story",
-        )
-        try:
-            _ = story.dir_root
-            assert False, "Should have raised ValueError"
-        except ValueError as e:
-            assert "dir_root not set" in str(e)
-
     def test_dir_root_and_path_properties(self):
-        """Test dir_root setter and path properties."""
+        """Test dir_root and path properties."""
         with tempfile.TemporaryDirectory() as tmpdir:
             story = Story(
                 id=1,
                 date="2025-01-01",
                 title="test-story",
+                path=tmpdir,
             )
-            story.set_dir_root(Path(tmpdir))
 
             # Verify path properties
             assert story.dir_root == Path(tmpdir)
@@ -110,8 +100,8 @@ class TestStoryOrTaskFileIO:
                 id=1,
                 date="2025-01-01",
                 title="test-story",
+                path=tmpdir,
             )
-            story.set_dir_root(Path(tmpdir))
 
             # Write and read description
             story.write_description("# My Story\n\nThis is a test.")
@@ -125,8 +115,8 @@ class TestStoryOrTaskFileIO:
                 id=1,
                 date="2025-01-01",
                 title="test-story",
+                path=tmpdir,
             )
-            story.set_dir_root(Path(tmpdir))
 
             # Read non-existent file
             content = story.read_description()
@@ -141,8 +131,8 @@ class TestStoryOrTaskFileIO:
                 id=1,
                 date="2025-01-01",
                 title="test-story",
+                path=tmpdir,
             )
-            story.set_dir_root(Path(tmpdir))
 
             # Write metadata with status
             story.write_metadata(status=StatusEnum.IN_PROGRESS)
@@ -159,8 +149,8 @@ class TestStoryOrTaskFileIO:
                 id=1,
                 date="2025-01-01",
                 title="test-story",
+                path=tmpdir,
             )
-            story.set_dir_root(Path(tmpdir))
 
             # Read non-existent metadata returns empty dict
             metadata = story.file_metadata
@@ -176,8 +166,8 @@ class TestStoryOrTaskFileIO:
                 id=1,
                 date="2025-01-01",
                 title="test-story",
+                path=tmpdir,
             )
-            story.set_dir_root(Path(tmpdir))
 
             # Write and read report
             story.write_report("# Report\n\nCompleted successfully.")
@@ -191,8 +181,8 @@ class TestStoryOrTaskFileIO:
                 id=1,
                 date="2025-01-01",
                 title="test-story",
+                path=tmpdir,
             )
-            story.set_dir_root(Path(tmpdir))
 
             # Read non-existent file
             content = story.read_report()
@@ -205,8 +195,8 @@ class TestStoryOrTaskFileIO:
                 id=1,
                 date="2025-01-01",
                 title="test-story",
+                path=tmpdir,
             )
-            story.set_dir_root(Path(tmpdir))
 
             # Verify dir_tasks path
             assert story.dir_tasks == Path(tmpdir) / "tasks"

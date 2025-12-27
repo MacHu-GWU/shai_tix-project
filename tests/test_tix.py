@@ -169,6 +169,31 @@ def tix_session():
         yield tix
 
 
+class TestTixQueryMethods:
+    """Test query methods that need explicit coverage."""
+
+    def test_query_tasks(self, tix_session):
+        """Test query_tasks returns all tasks from database."""
+        tix = tix_session
+
+        # Create story with tasks
+        story = tix.create_story(title="Story")
+        tix.create_task(story_id=story.id, title="Task A")
+        tix.create_task(story_id=story.id, title="Task B")
+
+        # Query all tasks
+        tasks = tix.query_tasks()
+        assert len(tasks) == 2
+        task_titles = {t.title for t in tasks}
+        assert task_titles == {"Task A", "Task B"}
+
+    def test_update_story_not_found(self, tix_session):
+        """Test update_story returns None for non-existent story."""
+        tix = tix_session
+        result = tix.update_story(id=99999, title="Nothing")
+        assert result is None
+
+
 class TestTixManageStory:
     """Test Story CRUD operations with a complete workflow."""
 
@@ -294,6 +319,60 @@ class TestTixManageStory:
         assert refetched_task2.dir_root.exists()
         assert refetched_task1.path_metadata.exists()
         assert refetched_task2.path_metadata.exists()
+
+    def test_update_story_without_title_change(self, tix_session):
+        """
+        Test update_story with status/description/report but no title change.
+
+        Covers lines 468, 472, 476 (update without folder rename).
+        """
+        tix = tix_session
+
+        # Create story
+        story = tix.create_story(title="My Story")
+        original_path = story.path
+
+        # Update only status, description, report (no title change)
+        updated = tix.update_story(
+            id=story.id,
+            status=StatusEnum.COMPLETED,
+            description="Updated description content.",
+            report="Final report content.",
+        )
+
+        # Verify path unchanged
+        assert updated.path == original_path
+        assert updated.dir_root.exists()
+
+        # Verify files updated
+        assert updated.status == StatusEnum.COMPLETED.value
+        assert "Updated description content." in updated.read_description()
+        assert "Final report content." in updated.read_report()
+
+    def test_update_story_title_same_sanitized(self, tix_session):
+        """
+        Test update_story with title change that produces same sanitized result.
+
+        Covers line 453 (title change without folder rename).
+        Example: "My Story" -> "My Story!" both sanitize to "My-Story"
+        """
+        tix = tix_session
+
+        # Create story with title
+        story = tix.create_story(title="My Story")
+        original_path = story.path
+
+        # Update title to different string that sanitizes to same result
+        # "My Story" and "My Story!" both become "My-Story"
+        updated = tix.update_story(id=story.id, title="My Story!")
+
+        # Folder should NOT change (same sanitized title)
+        assert updated.path == original_path
+        assert updated.dir_root.exists()
+
+        # But title in database should be updated
+        refetched = tix.get_story(story.id)
+        assert refetched.title == "My Story!"
 
     def test_delete_story_with_tasks(self, tix_session):
         """
@@ -447,6 +526,32 @@ class TestTixManageTask:
         # --- Step 12: Create task with invalid story ID raises error ---
         with pytest.raises(ValueError, match="Story with ID 99999 not found"):
             tix.create_task(story_id=99999, title="Invalid Task")
+
+    def test_update_task_title_same_sanitized(self, tix_session):
+        """
+        Test update_task with title change that produces same sanitized result.
+
+        Covers line 656 (title change without folder rename).
+        Example: "My Task" -> "My Task!" both sanitize to "My-Task"
+        """
+        tix = tix_session
+
+        # Create story and task
+        story = tix.create_story(title="Parent Story")
+        task = tix.create_task(story_id=story.id, title="My Task")
+        original_path = task.path
+
+        # Update title to different string that sanitizes to same result
+        # "My Task" and "My Task!" both become "My-Task"
+        updated = tix.update_task(id=task.id, title="My Task!")
+
+        # Folder should NOT change (same sanitized title)
+        assert updated.path == original_path
+        assert updated.dir_root.exists()
+
+        # But title in database should be updated
+        refetched = tix.get_task(task.id)
+        assert refetched.title == "My Task!"
 
 
 if __name__ == "__main__":

@@ -43,13 +43,6 @@ class StoryOrTask(Base):
     title: orm.Mapped[str] = orm.mapped_column(sa.String(255))
     path: orm.Mapped[str] = orm.mapped_column(sa.String(1024))
 
-    def __init__(self, **kwargs):
-        # Handle _dir_root for backward compatibility with iter_* methods
-        _dir_root = kwargs.pop("_dir_root", None)
-        if _dir_root is not None and "path" not in kwargs:
-            kwargs["path"] = str(_dir_root)
-        super().__init__(**kwargs)
-
     @property
     def dir_root(self) -> Path:
         """Get the filesystem directory for this entity as a Path object."""

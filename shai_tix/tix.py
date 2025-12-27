@@ -74,7 +74,7 @@ class Tix:
                         id=ticket.id,
                         date=ticket.date,
                         title=ticket.title,
-                        path=str(folder),
+                        _dir_root=folder,
                     )
 
     def iter_tasks(self):
@@ -105,7 +105,7 @@ class Tix:
                         story_id=story_id,
                         date=ticket.date,
                         title=ticket.title,
-                        path=str(folder),
+                        _dir_root=folder,
                     )
 
     def iter_stories_or_tasks(self):
@@ -146,7 +146,7 @@ class Tix:
                     id=ticket.id,
                     date=ticket.date,
                     title=ticket.title,
-                    path=str(path),
+                    _dir_root=path,
                 )
             elif ticket.type == WordsEnum.task.value:
                 # Get story_id from parent folder
@@ -158,7 +158,7 @@ class Tix:
                     story_id=story_id,
                     date=ticket.date,
                     title=ticket.title,
-                    path=str(path),
+                    _dir_root=path,
                 )
 
     def list_stories(self) -> list[Story]:

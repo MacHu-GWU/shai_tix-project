@@ -43,12 +43,15 @@ def build_folder_name(
 # Groups: (1) type, (2) date, (3) id, (4) title
 folder_pattern = re.compile(
     f"({WordsEnum.story.value}|{WordsEnum.task.value})"
-    + r"-(\d{4}-\d{2}-\d{2})-(\d{" + str(ZERO_PADDING) + r"})-(.+)$"
+    + r"-(\d{4}-\d{2}-\d{2})-(\d{"
+    + str(ZERO_PADDING)
+    + r"})-(.+)$"
 )
+
 
 @dataclasses.dataclass
 class Ticket:
-    type: str # "story" or "task"
+    type: str  # "story" or "task"
     id: int
     title: str
     date: str
@@ -79,9 +82,10 @@ class Ticket:
         )
 
 
-
-
 def safe_write(path: Path, content: str):
+    """
+    Safely write content to a file, creating parent directories if needed.
+    """
     try:
         path.write_text(content, encoding="utf-8")
     except FileNotFoundError:

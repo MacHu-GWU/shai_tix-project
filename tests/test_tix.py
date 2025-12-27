@@ -31,8 +31,7 @@ from pathlib import Path
 
 from shai_tix.paths import path_enum
 from shai_tix.constants import StatusEnum
-from shai_tix.story import Story
-from shai_tix.task import Task
+from shai_tix.db import Story, Task
 
 
 # Test fixture path
@@ -53,7 +52,7 @@ class BaseTest:
         cls.tix = Tix(dir_root=cls.dir_tix)
 
 
-class TestTixListMethods(BaseTest):
+class TestTixIterMethods(BaseTest):
     """Test Repo list methods using the .tix test fixture."""
 
     @classmethod
@@ -177,6 +176,7 @@ class TestTixManageStory(BaseTest):
         """Set up test repo before each test."""
         shutil.rmtree(cls.dir_tix, ignore_errors=True)
         cls._setup_class_create_tix()
+
 
 
 if __name__ == "__main__":

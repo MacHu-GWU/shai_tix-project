@@ -27,12 +27,13 @@ class StoryOrTask(Base):
     """
     Abstract base class for Story and Task ORM models.
 
-    Provides common fields (id, date, title) and file I/O methods for
+    Provides common fields (id, date, title, path) and file I/O methods for
     metadata, description, and report files.
 
     :param id: Primary key, the global ID
     :param date: Creation date in YYYY-MM-DD format
     :param title: Sanitized title from folder name
+    :param path: Absolute filesystem path to the entity directory
     """
 
     __abstract__ = True
@@ -40,29 +41,19 @@ class StoryOrTask(Base):
     id: orm.Mapped[int] = orm.mapped_column(primary_key=True)
     date: orm.Mapped[str] = orm.mapped_column(sa.String(10))
     title: orm.Mapped[str] = orm.mapped_column(sa.String(255))
+    path: orm.Mapped[str] = orm.mapped_column(sa.String(1024))
 
     def __init__(self, **kwargs):
-        # Extract dir_root before passing to SQLAlchemy
-        self._dir_root: Path | None = kwargs.pop("_dir_root", None)
+        # Handle _dir_root for backward compatibility with iter_* methods
+        _dir_root = kwargs.pop("_dir_root", None)
+        if _dir_root is not None and "path" not in kwargs:
+            kwargs["path"] = str(_dir_root)
         super().__init__(**kwargs)
 
     @property
     def dir_root(self) -> Path:
-        """Get the filesystem directory for this entity."""
-        if self._dir_root is None:
-            raise ValueError("dir_root not set. Use set_dir_root() first.")
-        return self._dir_root
-
-    def set_dir_root(self, path: Path) -> T.Self:
-        """
-        Set the filesystem directory for this entity.
-
-        :param path: Directory path
-
-        :returns: Self for method chaining
-        """
-        self._dir_root = path
-        return self
+        """Get the filesystem directory for this entity as a Path object."""
+        return Path(self.path)
 
     @property
     def path_metadata(self) -> Path:

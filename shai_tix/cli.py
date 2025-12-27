@@ -17,9 +17,38 @@ def _get_tix(root: str | None = None) -> Tix:
 
 class Cli:
     """
-    CLI for shai_tix task management system.
+    CLI for shai_tix task management system (designed for AI agents).
+
+    If running multiple CLI commands in sequence, call ``rebuild_index_db``
+    first to sync the SQLite index with the filesystem once, avoiding
+    redundant rebuilds on each query command.
+
+    Example::
+
+        shai-tix rebuild_index_db
+        shai-tix list_stories
+        shai-tix list_tasks
+        shai-tix search_stories --title "auth"
     """
 
+    def rebuild_index_db(
+        self,
+        root: str | None = None,
+    ):
+        """
+        Rebuild the SQLite index from filesystem.
+
+        Call this before running multiple query commands to avoid repeated rebuilds.
+
+        :param root: Project root directory (default: current directory).
+        """
+        tix = _get_tix(root)
+        tix.rebuild_index_db()
+        print("Index database rebuilt")
+
+    # -------------------------------------------------------------------------
+    # Story Commands
+    # -------------------------------------------------------------------------
     def list_stories(
         self,
         limit: int = 20,
@@ -32,10 +61,10 @@ class Cli:
         :param root: Project root directory (default: current directory).
         """
         tix = _get_tix(root)
-        with tix.session():
-            stories = tix.query_stories()[:limit]
-            for story in stories:
-                print(f"[{story.id}] {story.date} - {story.title}")
+        tix.ensure_index_db()
+        stories = tix.query_stories()[:limit]
+        for story in stories:
+            print(f"[{story.id}] {story.date} - {story.title}")
 
     def search_stories(
         self,
@@ -172,10 +201,10 @@ class Cli:
         :param root: Project root directory (default: current directory).
         """
         tix = _get_tix(root)
-        with tix.session():
-            tasks = tix.query_tasks()[:limit]
-            for task in tasks:
-                print(f"[{task.id}] {task.date} - {task.title} (story: {task.story_id})")
+        tix.ensure_index_db()
+        tasks = tix.query_tasks()[:limit]
+        for task in tasks:
+            print(f"[{task.id}] {task.date} - {task.title} (story: {task.story_id})")
 
     def list_tasks_by_story(
         self,

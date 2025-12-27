@@ -2,6 +2,74 @@ Maintainer Guide
 ==============================================================================
 
 
+Solution Design
+------------------------------------------------------------------------------
+
+This section explains the core design philosophy and key decisions behind
+``shai_tix``.
+
+
+Design Philosophy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``shai_tix`` balances two competing requirements:
+
+1. **Human-friendly** - Files and directories that humans can browse, read,
+   and edit directly using any text editor or file manager
+2. **Machine-friendly** - Fast querying and reliable ID generation for
+   AI agents and programmatic access
+
+The solution: **Filesystem as source of truth + SQLite as index/cache**.
+
+This hybrid approach provides:
+
+- Git-friendly storage (trackable, mergeable, diffable)
+- Natural markdown editing for humans
+- Fast queries without full filesystem scans
+- Resilience: if SQLite corrupts, rebuild from filesystem
+
+
+Key Design Decisions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Why not just SQLite?**
+
+- Humans cannot easily browse or edit SQLite databases
+- Markdown files are git-friendly with clear diffs
+- AI agents can read and write markdown naturally
+- Version control integration is seamless
+
+**Why not just filesystem?**
+
+- Scanning directories is slow for large projects
+- No efficient way to query by status or date range
+- ID generation would require scanning all directories
+- Search operations become O(n) instead of O(1)
+
+**Why global ID space?**
+
+Stories and tasks share the same monotonically increasing ID sequence:
+
+- Simpler implementation with no ID collisions
+- IDs are unique across all entities
+- Unambiguous references: "task 42" cannot be confused with "story 42"
+- Natural chronological ordering
+
+**Why two-level hierarchy only?**
+
+::
+
+    Story (Epic-level work item)
+    └── Task (Atomic work unit)
+
+- **Story**: A feature or large work item containing multiple tasks
+- **Task**: An atomic unit of work that can be completed independently
+- Tasks cannot be nested. If a task needs subtasks, promote it to a story.
+
+This constraint keeps the system simple while covering most real-world
+workflows. Deep nesting rarely adds value and complicates navigation.
+
+
 Source Code Architecture
 ------------------------------------------------------------------------------
 
@@ -95,21 +163,21 @@ Directory Structure
 A typical ``.tix`` directory structure::
 
     .tix/
-    ├── index.sqlite                              # SQLite index database
+    ├── index.sqlite                             # SQLite index database
     └── stories/
-        ├── story-2025-01-15-000001-user-login/
-        │   ├── metadata.json                     # {"status": "IN_PROGRESS"}
-        │   ├── description.md                    # Story description
-        │   ├── report.md                         # Completion report (optional)
+        ├── story-2025-01-15-00001-user-login/
+        │   ├── metadata.json                    # {"status": "IN_PROGRESS"}
+        │   ├── description.md                   # Story description
+        │   ├── report.md                        # Completion report (optional)
         │   └── tasks/
-        │       ├── task-2025-01-15-000002-create-login-form/
+        │       ├── task-2025-01-15-00002-create-login-form/
         │       │   ├── metadata.json
         │       │   ├── description.md
         │       │   └── report.md
-        │       └── task-2025-01-16-000003-add-validation/
+        │       └── task-2025-01-16-00003-add-validation/
         │           ├── metadata.json
         │           └── description.md
-        └── story-2025-01-20-000004-payment-integration/
+        └── story-2025-01-20-00004-payment-integration/
             ├── metadata.json
             ├── description.md
             └── tasks/
@@ -120,7 +188,7 @@ A typical ``.tix`` directory structure::
 - Format: ``{type}-{date}-{id}-{sanitized_title}``
 - Type: ``story`` or ``task``
 - Date: ``YYYY-MM-DD`` (creation date in UTC)
-- ID: 6-digit zero-padded global ID (e.g., ``000001``)
+- ID: 5-digit zero-padded global ID (e.g., ``00001``)
 - Title: Hyphen-separated alphanumeric characters
 
 
@@ -229,6 +297,35 @@ working directory. Use ``--root`` to specify a different project root::
 
     # Use specific project root
     shai-tix list_stories --root /path/to/project
+
+
+Index Management
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Command
+     - Description
+   * - ``rebuild_index_db [--root]``
+     - Rebuild SQLite index from filesystem
+
+**When to use rebuild_index_db:**
+
+- Before running multiple query commands in batch
+- After external changes to the ``.tix`` directory (e.g., git pull)
+- When query results seem stale or incorrect
+
+Query commands (``list_*``, ``search_*``, ``get_*``) use ``ensure_index_db()``
+which only creates the index if it doesn't exist. For fresh data after
+filesystem changes, call ``rebuild_index_db`` first::
+
+    # Rebuild index once, then run multiple queries
+    shai-tix rebuild_index_db
+    shai-tix list_stories
+    shai-tix list_tasks
+    shai-tix search_stories --title "auth"
 
 
 Story Commands

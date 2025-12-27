@@ -45,7 +45,11 @@ class Tix:
 
         :returns: Context manager yielding self
         """
-        self.rebuild_index_db()
+        try:
+            self.rebuild_index_db()
+        except:
+            self.dir_root.mkdir(parents=True, exist_ok=True)
+            self.rebuild_index_db()
         yield self
 
     @cached_property

@@ -241,29 +241,35 @@ class Tix:
     # --------------------------------------------------------------------------
     # Database Query Methods (use within context manager)
     # --------------------------------------------------------------------------
-    def query_stories(self) -> list[Story]:
+    def query_stories(self, limit: int = 20) -> list[Story]:
         """
         Query all stories from the index database.
 
         Use within context manager to ensure database is synchronized.
 
+        :param limit: Maximum number of stories to return
+
         :returns: List of all Story objects from database, sorted by ID descending
         """
         with orm.Session(self.engine) as session:
+            query = session.query(Story).order_by(Story.id.desc()).limit(limit)
             return [
                 Story(id=s.id, date=s.date, title=s.title, path=s.path)
-                for s in session.query(Story).order_by(Story.id.desc()).all()
+                for s in query.all()
             ]
 
-    def query_tasks(self) -> list[Task]:
+    def query_tasks(self, limit: int = 20) -> list[Task]:
         """
         Query all tasks from the index database.
 
         Use within context manager to ensure database is synchronized.
 
+        :param limit: Maximum number of tasks to return
+
         :returns: List of all Task objects from database, sorted by ID descending
         """
         with orm.Session(self.engine) as session:
+            query = session.query(Task).order_by(Task.id.desc()).limit(limit)
             return [
                 Task(
                     id=t.id,
@@ -272,7 +278,7 @@ class Tix:
                     title=t.title,
                     path=t.path,
                 )
-                for t in session.query(Task).order_by(Task.id.desc()).all()
+                for t in query.all()
             ]
 
     def query_story(self, id: int) -> Story | None:
@@ -338,6 +344,7 @@ class Tix:
         date_upper: str | None = None,
         id_lower: int | None = None,
         id_upper: int | None = None,
+        limit: int = 20,
     ) -> list[Story]:
         """
         Search stories by title, date range, and/or ID range.
@@ -354,6 +361,7 @@ class Tix:
         :param date_upper: Maximum date (inclusive), format YYYY-MM-DD
         :param id_lower: Minimum ID (inclusive)
         :param id_upper: Maximum ID (inclusive)
+        :param limit: Maximum number of stories to return
 
         :returns: List of matching Story objects, sorted by ID descending
 
@@ -387,6 +395,8 @@ class Tix:
                 results.append(
                     Story(id=s.id, date=s.date, title=s.title, path=s.path)
                 )
+                if len(results) >= limit:
+                    break
 
             return results
 
@@ -397,6 +407,7 @@ class Tix:
         date_upper: str | None = None,
         id_lower: int | None = None,
         id_upper: int | None = None,
+        limit: int = 20,
     ) -> list[Task]:
         """
         Search tasks by title, date range, and/or ID range.
@@ -413,6 +424,7 @@ class Tix:
         :param date_upper: Maximum date (inclusive), format YYYY-MM-DD
         :param id_lower: Minimum ID (inclusive)
         :param id_upper: Maximum ID (inclusive)
+        :param limit: Maximum number of tasks to return
 
         :returns: List of matching Task objects, sorted by ID descending
 
@@ -452,6 +464,8 @@ class Tix:
                         path=t.path,
                     )
                 )
+                if len(results) >= limit:
+                    break
 
             return results
 

@@ -133,8 +133,10 @@ class Tix:
             name = path.name
 
             # Quick prefix check before expensive Ticket parsing
-            if not (name.startswith(WordsEnum.story.value + "-") or
-                    name.startswith(WordsEnum.task.value + "-")):
+            if not (
+                name.startswith(WordsEnum.story.value + "-")
+                or name.startswith(WordsEnum.task.value + "-")
+            ):
                 continue
 
             ticket = Ticket.from_folder(path)
@@ -187,21 +189,25 @@ class Tix:
 
         with orm.Session(engine) as session:
             for story in self.iter_stories():
-                session.add(Story(
-                    id=story.id,
-                    date=story.date,
-                    title=story.title,
-                    path=story.path,
-                ))
+                session.add(
+                    Story(
+                        id=story.id,
+                        date=story.date,
+                        title=story.title,
+                        path=story.path,
+                    )
+                )
 
             for task in self.iter_tasks():
-                session.add(Task(
-                    id=task.id,
-                    story_id=task.story_id,
-                    date=task.date,
-                    title=task.title,
-                    path=task.path,
-                ))
+                session.add(
+                    Task(
+                        id=task.id,
+                        story_id=task.story_id,
+                        date=task.date,
+                        title=task.title,
+                        path=task.path,
+                    )
+                )
 
             session.commit()
 
@@ -212,9 +218,6 @@ class Tix:
         if not self.path_index_db.exists():
             self.rebuild_index_db()
 
-    # --------------------------------------------------------------------------
-    # Story CRUD
-    # --------------------------------------------------------------------------
     def get_next_id(self) -> int:
         """
         Get the next available ID from the index database.
@@ -231,6 +234,76 @@ class Tix:
             max_task_id = session.query(sa.func.max(Task.id)).scalar() or 0
             return max(max_story_id, max_task_id) + 1
 
+    # --------------------------------------------------------------------------
+    # Database Query Methods (use within context manager)
+    # --------------------------------------------------------------------------
+    def query_stories(self) -> list[Story]:
+        """
+        Query all stories from the index database.
+
+        Use within context manager to ensure database is synchronized.
+
+        :returns: List of all Story objects from database
+        """
+        with orm.Session(self.engine) as session:
+            return [
+                Story(id=s.id, date=s.date, title=s.title, path=s.path)
+                for s in session.query(Story).all()
+            ]
+
+    def query_tasks(self) -> list[Task]:
+        """
+        Query all tasks from the index database.
+
+        Use within context manager to ensure database is synchronized.
+
+        :returns: List of all Task objects from database
+        """
+        with orm.Session(self.engine) as session:
+            return [
+                Task(
+                    id=t.id,
+                    story_id=t.story_id,
+                    date=t.date,
+                    title=t.title,
+                    path=t.path,
+                )
+                for t in session.query(Task).all()
+            ]
+
+    def query_story(self, id: int) -> Story | None:
+        """
+        Query a single story by ID from the index database.
+
+        :param id: Story ID to query
+
+        :returns: Story object if found, None otherwise
+        """
+        with orm.Session(self.engine) as session:
+            s = session.get(Story, id)
+            if s is None:
+                return None
+            return Story(id=s.id, date=s.date, title=s.title, path=s.path)
+
+    def query_task(self, id: int) -> Task | None:
+        """
+        Query a single task by ID from the index database.
+
+        :param id: Task ID to query
+
+        :returns: Task object if found, None otherwise
+        """
+        with orm.Session(self.engine) as session:
+            t = session.get(Task, id)
+            if t is None:
+                return None
+            return Task(
+                id=t.id, story_id=t.story_id, date=t.date, title=t.title, path=t.path
+            )
+
+    # --------------------------------------------------------------------------
+    # Story CRUD
+    # --------------------------------------------------------------------------
     def create_story(
         self,
         title: str,
@@ -352,7 +425,7 @@ class Tix:
             )
             new_dir = self.dir_stories / new_folder_name
 
-            is_folder_changed = (new_dir != story.dir_root)
+            is_folder_changed = new_dir != story.dir_root
 
             if is_folder_changed:
                 shutil.move(str(story.dir_root), str(new_dir))
@@ -366,7 +439,9 @@ class Tix:
             with orm.Session(self.engine) as session:
                 if is_folder_changed:
                     session.execute(
-                        sa.update(Story).where(Story.id == id).values(title=title, path=new_path)
+                        sa.update(Story)
+                        .where(Story.id == id)
+                        .values(title=title, path=new_path)
                     )
                 else:
                     session.execute(
@@ -531,6 +606,7 @@ class Tix:
 
         # Delete from filesystem
         import shutil
+
         if task.dir_root.exists():
             shutil.rmtree(task.dir_root)
 
@@ -551,65 +627,12 @@ class Tix:
         """
         with orm.Session(self.engine) as session:
             return [
-                Task(id=t.id, story_id=t.story_id, date=t.date, title=t.title, path=t.path)
+                Task(
+                    id=t.id,
+                    story_id=t.story_id,
+                    date=t.date,
+                    title=t.title,
+                    path=t.path,
+                )
                 for t in session.query(Task).where(Task.story_id == story_id).all()
             ]
-
-    # --------------------------------------------------------------------------
-    # Database Query Methods (use within context manager)
-    # --------------------------------------------------------------------------
-    def query_stories(self) -> list[Story]:
-        """
-        Query all stories from the index database.
-
-        Use within context manager to ensure database is synchronized.
-
-        :returns: List of all Story objects from database
-        """
-        with orm.Session(self.engine) as session:
-            return [
-                Story(id=s.id, date=s.date, title=s.title, path=s.path)
-                for s in session.query(Story).all()
-            ]
-
-    def query_tasks(self) -> list[Task]:
-        """
-        Query all tasks from the index database.
-
-        Use within context manager to ensure database is synchronized.
-
-        :returns: List of all Task objects from database
-        """
-        with orm.Session(self.engine) as session:
-            return [
-                Task(id=t.id, story_id=t.story_id, date=t.date, title=t.title, path=t.path)
-                for t in session.query(Task).all()
-            ]
-
-    def query_story(self, id: int) -> Story | None:
-        """
-        Query a single story by ID from the index database.
-
-        :param id: Story ID to query
-
-        :returns: Story object if found, None otherwise
-        """
-        with orm.Session(self.engine) as session:
-            s = session.get(Story, id)
-            if s is None:
-                return None
-            return Story(id=s.id, date=s.date, title=s.title, path=s.path)
-
-    def query_task(self, id: int) -> Task | None:
-        """
-        Query a single task by ID from the index database.
-
-        :param id: Task ID to query
-
-        :returns: Task object if found, None otherwise
-        """
-        with orm.Session(self.engine) as session:
-            t = session.get(Task, id)
-            if t is None:
-                return None
-            return Task(id=t.id, story_id=t.story_id, date=t.date, title=t.title, path=t.path)

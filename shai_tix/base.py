@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 
+import typing as T
+import json
 import dataclasses
 from pathlib import Path
 from functools import cached_property
 
 from .utils import safe_write
+from .constants import StatusEnum, MetadataKeyEnum
 
 
 @dataclasses.dataclass(frozen=True)
@@ -13,6 +16,28 @@ class StoryOrTask:
     id: int = dataclasses.field()
     title: str = dataclasses.field()
     date: str = dataclasses.field(default="")
+
+    @cached_property
+    def path_metadata(self) -> Path:
+        return self.dir_root / "metadata.json"
+
+    @cached_property
+    def metadata(self) -> dict[str, T.Any]:
+        try:
+            content = self.path_metadata.read_text(encoding="utf-8")
+            return json.loads(content)
+        except FileNotFoundError:
+            return {}
+
+    def write_metadata(self, status: StatusEnum):
+        data = {
+            MetadataKeyEnum.status.value: status.value,
+        }
+        safe_write(self.path_metadata, json.dumps(data, indent=4, ensure_ascii=False))
+
+    @cached_property
+    def status(self) -> StatusEnum:
+        return self.metadata[MetadataKeyEnum.status.value]
 
     @cached_property
     def path_description(self) -> Path:

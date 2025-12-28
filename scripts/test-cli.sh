@@ -98,9 +98,9 @@ echo "--- Verify updates applied ---"
 shai-tix get_story 3
 echo ""
 
-echo "--- Update story with title that sanitizes to same value ---"
+echo "--- Update story with title that encodes to same value (whitespace normalization) ---"
 shai-tix create_story "My Story"
-shai-tix update_story 4 --title "My Story!"
+shai-tix update_story 4 --title "My  Story"
 shai-tix get_story 4
 echo ""
 
@@ -170,7 +170,7 @@ shai-tix delete_task 6
 echo ""
 
 echo "=============================================================================="
-echo "Part 4: Test update_task with same sanitized title"
+echo "Part 4: Test update_task with same encoded title (whitespace normalization)"
 echo "=============================================================================="
 echo ""
 
@@ -179,8 +179,8 @@ shai-tix create_story "Task Parent"
 shai-tix create_task 8 "My Task"
 echo ""
 
-echo "--- Update task title to same sanitized value ---"
-shai-tix update_task 9 --title "My Task!"
+echo "--- Update task title to same encoded value (whitespace normalization) ---"
+shai-tix update_task 9 --title "My  Task"
 echo ""
 
 echo "--- Verify task updated ---"

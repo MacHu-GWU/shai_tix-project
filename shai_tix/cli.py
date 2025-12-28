@@ -161,7 +161,7 @@ class Cli:
         root: str | None = None,
     ):
         """
-        Get a story by ID.
+        Get a story by ID with full details.
 
         :param id: Story ID.
         :param root: Project root directory (default: current directory).
@@ -172,7 +172,20 @@ class Cli:
             print(f"Story {id} not found")
             return
         print(f"[{story.id}] {story.date} - {story.title}")
+        print(f"Status: {story.status}")
         print(f"Path: {story.path}")
+        print("")
+        print("--- Description ---")
+        if story.path_description.exists():
+            print(story.read_description())
+        else:
+            print("(No description)")
+        print("")
+        print("--- Report ---")
+        if story.path_report.exists():
+            print(story.read_report())
+        else:
+            print("(No report)")
 
     def update_story(
         self,
@@ -336,7 +349,7 @@ class Cli:
         root: str | None = None,
     ):
         """
-        Get a task by ID.
+        Get a task by ID with full details.
 
         :param id: Task ID.
         :param root: Project root directory (default: current directory).
@@ -347,8 +360,21 @@ class Cli:
             print(f"Task {id} not found")
             return
         print(f"[{task.id}] {task.date} - {task.title}")
+        print(f"Status: {task.status}")
         print(f"Story ID: {task.story_id}")
         print(f"Path: {task.path}")
+        print("")
+        print("--- Description ---")
+        if task.path_description.exists():
+            print(task.read_description())
+        else:
+            print("(No description)")
+        print("")
+        print("--- Report ---")
+        if task.path_report.exists():
+            print(task.read_report())
+        else:
+            print("(No report)")
 
     def update_task(
         self,

@@ -15,6 +15,26 @@ x.y.z (Backlog)
 **Miscellaneous**
 
 
+0.1.3 (2025-12-28)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Features and Improvements**
+
+- Add automatic index rebuild on database errors in CLI layer
+- All CLI commands now gracefully handle missing/corrupted database scenarios:
+    - SQLite file doesn't exist
+    - ``.tix`` directory doesn't exist
+    - Database tables don't exist (empty SQLite file)
+    - Index out of sync with filesystem
+- Commands automatically rebuild index and retry once on ``OperationalError``
+
+**Architecture**
+
+- Move error recovery logic from ``tix.py`` to ``cli.py`` (separation of concerns)
+- ``Tix`` API remains pure - errors propagate to caller for explicit handling
+- CLI provides user-friendly auto-recovery via ``_with_auto_rebuild`` wrapper
+- All 13 CLI commands wrapped with consistent error handling pattern
+
+
 0.1.2 (2025-12-27)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 **Features and Improvements**

@@ -3,11 +3,15 @@
 import sys
 import dataclasses
 from pathlib import Path
+from typing import Callable, TypeVar
 
 import fire
+import sqlalchemy as sa
 
 from shai_tix.tix import Tix
 from shai_tix.constants import StatusEnum
+
+T = TypeVar("T")
 
 
 def _parse_status_list(status: str | tuple | None) -> list[StatusEnum] | None:
@@ -63,6 +67,24 @@ class Cli:
         else:
             return Tix(dir_root=Path.cwd().absolute().joinpath(".tix"))
 
+    def _with_auto_rebuild(self, tix: Tix, operation: Callable[[], T]) -> T:
+        """
+        Execute operation with automatic index rebuild on database errors.
+
+        If the operation fails due to missing table or database, rebuilds the
+        index and retries once.
+
+        :param tix: Tix instance to use for rebuild
+        :param operation: Callable that performs the database operation
+
+        :returns: Result of the operation
+        """
+        try:
+            return operation()
+        except sa.exc.OperationalError:
+            tix.rebuild_index_db()
+            return operation()
+
     def rebuild_index_db(
         self,
         root: str | None = None,
@@ -95,8 +117,12 @@ class Cli:
         :param root: Project root directory (default: current directory).
         """
         tix = self._get_tix(root)
-        tix.ensure_index_db()
-        stories = tix.query_stories()[:limit]
+
+        def _do():
+            tix.ensure_index_db()
+            return tix.query_stories()[:limit]
+
+        stories = self._with_auto_rebuild(tix, _do)
         for story in stories:
             print(f"[{story.id}] {story.date} - {story.title}")
 
@@ -132,22 +158,26 @@ class Cli:
         :param root: Project root directory (default: current directory).
         """
         tix = self._get_tix(root)
-        tix.ensure_index_db()
         try:
             status_list = _parse_status_list(status)
         except ValueError as e:
             valid = ", ".join([s.value for s in StatusEnum])
             print(f"Error: Invalid status value. Valid values: {valid}")
             sys.exit(1)
-        stories = tix.search_stories(
-            title=title,
-            date_lower=date_lower,
-            date_upper=date_upper,
-            id_lower=id_lower,
-            id_upper=id_upper,
-            status=status_list,
-            limit=limit,
-        )
+
+        def _do():
+            tix.ensure_index_db()
+            return tix.search_stories(
+                title=title,
+                date_lower=date_lower,
+                date_upper=date_upper,
+                id_lower=id_lower,
+                id_upper=id_upper,
+                status=status_list,
+                limit=limit,
+            )
+
+        stories = self._with_auto_rebuild(tix, _do)
         for story in stories:
             print(f"[{story.id}] {story.date} - {story.title}")
 
@@ -166,7 +196,11 @@ class Cli:
         :param root: Project root directory (default: current directory).
         """
         tix = self._get_tix(root)
-        story = tix.create_story(title=title, description=description)
+
+        def _do():
+            return tix.create_story(title=title, description=description)
+
+        story = self._with_auto_rebuild(tix, _do)
         print(f"Created story [{story.id}] {story.title}")
 
     def get_story(
@@ -193,7 +227,11 @@ class Cli:
         :param root: Project root directory (default: current directory).
         """
         tix = self._get_tix(root)
-        story = tix.get_story(id=id)
+
+        def _do():
+            return tix.get_story(id=id)
+
+        story = self._with_auto_rebuild(tix, _do)
         if story is None:
             print(f"Story {id} not found")
             return
@@ -235,13 +273,17 @@ class Cli:
         """
         tix = self._get_tix(root)
         status_enum = _parse_status_enum(status)
-        story = tix.update_story(
-            id=id,
-            title=title,
-            status=status_enum,
-            description=description,
-            report=report,
-        )
+
+        def _do():
+            return tix.update_story(
+                id=id,
+                title=title,
+                status=status_enum,
+                description=description,
+                report=report,
+            )
+
+        story = self._with_auto_rebuild(tix, _do)
         if story is None:
             print(f"Story {id} not found")
             return
@@ -259,7 +301,11 @@ class Cli:
         :param root: Project root directory (default: current directory).
         """
         tix = self._get_tix(root)
-        success = tix.delete_story(id=id)
+
+        def _do():
+            return tix.delete_story(id=id)
+
+        success = self._with_auto_rebuild(tix, _do)
         if success:
             print(f"Deleted story {id}")
         else:
@@ -282,8 +328,12 @@ class Cli:
         :param root: Project root directory (default: current directory).
         """
         tix = self._get_tix(root)
-        tix.ensure_index_db()
-        tasks = tix.query_tasks()[:limit]
+
+        def _do():
+            tix.ensure_index_db()
+            return tix.query_tasks()[:limit]
+
+        tasks = self._with_auto_rebuild(tix, _do)
         for task in tasks:
             print(f"[{task.id}] {task.date} - {task.title} (story: {task.story_id})")
 
@@ -303,8 +353,12 @@ class Cli:
         :param root: Project root directory (default: current directory).
         """
         tix = self._get_tix(root)
-        tix.ensure_index_db()
-        tasks = tix.query_tasks_by_story(story_id)[:limit]
+
+        def _do():
+            tix.ensure_index_db()
+            return tix.query_tasks_by_story(story_id)[:limit]
+
+        tasks = self._with_auto_rebuild(tix, _do)
         for task in tasks:
             print(f"[{task.id}] {task.date} - {task.title}")
 
@@ -340,22 +394,26 @@ class Cli:
         :param root: Project root directory (default: current directory).
         """
         tix = self._get_tix(root)
-        tix.ensure_index_db()
         try:
             status_list = _parse_status_list(status)
         except ValueError as e:
             valid = ", ".join([s.value for s in StatusEnum])
             print(f"Error: Invalid status value. Valid values: {valid}")
             sys.exit(1)
-        tasks = tix.search_tasks(
-            title=title,
-            date_lower=date_lower,
-            date_upper=date_upper,
-            id_lower=id_lower,
-            id_upper=id_upper,
-            status=status_list,
-            limit=limit,
-        )
+
+        def _do():
+            tix.ensure_index_db()
+            return tix.search_tasks(
+                title=title,
+                date_lower=date_lower,
+                date_upper=date_upper,
+                id_lower=id_lower,
+                id_upper=id_upper,
+                status=status_list,
+                limit=limit,
+            )
+
+        tasks = self._with_auto_rebuild(tix, _do)
         for task in tasks:
             print(f"[{task.id}] {task.date} - {task.title} (story: {task.story_id})")
 
@@ -376,8 +434,12 @@ class Cli:
         :param root: Project root directory (default: current directory).
         """
         tix = self._get_tix(root)
+
+        def _do():
+            return tix.create_task(story_id=story_id, title=title, description=description)
+
         try:
-            task = tix.create_task(story_id=story_id, title=title, description=description)
+            task = self._with_auto_rebuild(tix, _do)
             print(f"Created task [{task.id}] {task.title}")
         except ValueError as e:
             print(f"Error: {e}")
@@ -408,7 +470,11 @@ class Cli:
         :param root: Project root directory (default: current directory).
         """
         tix = self._get_tix(root)
-        task = tix.get_task(id=id)
+
+        def _do():
+            return tix.get_task(id=id)
+
+        task = self._with_auto_rebuild(tix, _do)
         if task is None:
             print(f"Task {id} not found")
             return
@@ -451,13 +517,17 @@ class Cli:
         """
         tix = self._get_tix(root)
         status_enum = _parse_status_enum(status)
-        task = tix.update_task(
-            id=id,
-            title=title,
-            status=status_enum,
-            description=description,
-            report=report,
-        )
+
+        def _do():
+            return tix.update_task(
+                id=id,
+                title=title,
+                status=status_enum,
+                description=description,
+                report=report,
+            )
+
+        task = self._with_auto_rebuild(tix, _do)
         if task is None:
             print(f"Task {id} not found")
             return
@@ -475,7 +545,11 @@ class Cli:
         :param root: Project root directory (default: current directory).
         """
         tix = self._get_tix(root)
-        success = tix.delete_task(id=id)
+
+        def _do():
+            return tix.delete_task(id=id)
+
+        success = self._with_auto_rebuild(tix, _do)
         if success:
             print(f"Deleted task {id}")
         else:

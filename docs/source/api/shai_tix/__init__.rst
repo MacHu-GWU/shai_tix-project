@@ -14,6 +14,7 @@ sub packages and modules
     cli <cli>
     constants <constants>
     db <db>
+    title_codec <title_codec>
     tix <tix>
     utils <utils>
     

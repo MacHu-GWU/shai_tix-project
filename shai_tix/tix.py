@@ -45,11 +45,7 @@ class Tix:
 
         :returns: Context manager yielding self
         """
-        try:
-            self.rebuild_index_db()
-        except:
-            self.dir_root.mkdir(parents=True, exist_ok=True)
-            self.rebuild_index_db()
+        self.rebuild_index_db()
         yield self
 
     @cached_property
@@ -179,6 +175,15 @@ class Tix:
     def engine(self) -> sa.Engine:
         return sa.create_engine(f"sqlite:///{self.path_index_db}")
 
+    def ensure_dir_root(self):
+        """
+        Ensure the root directory exists.
+
+        Creates the .tix directory if it doesn't exist. This is called
+        automatically before any database operations.
+        """
+        self.dir_root.mkdir(parents=True, exist_ok=True)
+
     def rebuild_index_db(self):
         """
         Rebuild the SQLite index database from filesystem.
@@ -186,6 +191,9 @@ class Tix:
         Scans all story and task folders, creates ORM objects, and writes
         them to the SQLite database. Existing data is cleared first.
         """
+        # Ensure directory exists before accessing database
+        self.ensure_dir_root()
+
         # Create engine and tables
         engine = self.engine
         Base.metadata.drop_all(engine)

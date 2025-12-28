@@ -44,25 +44,41 @@ dir_test_root = dir_here
 class BaseTest:
     """Test Repo list methods using the .tix test fixture."""
 
-    dir_tix = path_enum.dir_unit_test / ".tix"
     dir_tix_source = path_enum.dir_unit_test / ".tix-source"
+    dir_tix: Path
     tix: Tix
 
     @classmethod
-    def _setup_class_create_tix(cls):
+    def setup_class_remove_existing_tix(cls):
+        shutil.rmtree(cls.dir_tix, ignore_errors=True)
+
+    @classmethod
+    def setup_class_init_tix(cls):
         cls.dir_tix.mkdir(parents=True, exist_ok=True)
         cls.tix = Tix(dir_root=cls.dir_tix)
+        cls.tix.rebuild_index_db()
+
+    @classmethod
+    def setup_class_prepare_tix(cls):
+        pass
+
+    @classmethod
+    def setup_class(cls):
+        """Set up test repo before each test."""
+        cls.setup_class_remove_existing_tix()
+        cls.setup_class_prepare_tix()
+        cls.setup_class_init_tix()
 
 
 class TestTixIterMethods(BaseTest):
     """Test Repo list methods using the .tix test fixture."""
 
+    dir_tix = path_enum.dir_unit_test / ".tix-iter-methods"
+
     @classmethod
-    def setup_class(cls):
+    def setup_class_prepare_tix(cls):
         """Set up test repo before each test."""
-        shutil.rmtree(cls.dir_tix, ignore_errors=True)
         shutil.copytree(cls.dir_tix_source, cls.dir_tix)
-        cls._setup_class_create_tix()
 
     def test_iter_stories(self):
         """Test iterating over all stories."""
@@ -169,12 +185,14 @@ def tix_session():
         yield tix
 
 
-class TestTixQueryMethods:
+class TestTixQueryMethods(BaseTest):
     """Test query methods that need explicit coverage."""
 
-    def test_query_tasks(self, tix_session):
+    dir_tix = path_enum.dir_unit_test / ".tix-query-methods"
+
+    def test_query_tasks(self):
         """Test query_tasks returns all tasks from database."""
-        tix = tix_session
+        tix = self.tix
 
         # Create story with tasks
         story = tix.create_story(title="Story")
@@ -187,19 +205,24 @@ class TestTixQueryMethods:
         task_titles = {t.title for t in tasks}
         assert task_titles == {"Task A", "Task B"}
 
-    def test_update_story_not_found(self, tix_session):
+    def test_update_story_not_found(self):
         """Test update_story returns None for non-existent story."""
-        tix = tix_session
+        tix = self.tix
         result = tix.update_story(id=99999, title="Nothing")
         assert result is None
 
 
-class TestTixSearchMethods:
+class TestTixSearchMethods(BaseTest):
     """Test search_stories and search_tasks methods."""
 
-    def test_search_stories_by_title(self, tix_session):
+    dir_tix = path_enum.dir_unit_test / ".tix-search-methods"
+
+    def setup_method(self):
+        self.setup_class()
+
+    def test_search_stories_by_title(self):
         """Test searching stories by title with token matching."""
-        tix = tix_session
+        tix = self.tix
 
         # Create stories with various titles
         tix.create_story(title="Login Feature Implementation")
@@ -225,9 +248,9 @@ class TestTixSearchMethods:
         results = tix.search_stories(title="nonexistent")
         assert len(results) == 0
 
-    def test_search_stories_by_date_range(self, tix_session):
+    def test_search_stories_by_date_range(self):
         """Test searching stories by date range."""
-        tix = tix_session
+        tix = self.tix
 
         # Create stories (all created today with same date)
         s1 = tix.create_story(title="Story One")
@@ -242,9 +265,9 @@ class TestTixSearchMethods:
         results = tix.search_stories(date_lower="2099-01-01")
         assert len(results) == 0
 
-    def test_search_stories_by_id_range(self, tix_session):
+    def test_search_stories_by_id_range(self):
         """Test searching stories by ID range."""
-        tix = tix_session
+        tix = self.tix
 
         # Create stories
         s1 = tix.create_story(title="First")
@@ -263,9 +286,9 @@ class TestTixSearchMethods:
         assert len(results) == 1
         assert results[0].id == s3.id
 
-    def test_search_stories_combined_filters(self, tix_session):
+    def test_search_stories_combined_filters(self):
         """Test searching stories with multiple filters."""
-        tix = tix_session
+        tix = self.tix
 
         # Create stories
         s1 = tix.create_story(title="Login Feature")
@@ -281,9 +304,9 @@ class TestTixSearchMethods:
         assert len(results) == 1
         assert results[0].title == "Login Feature"
 
-    def test_search_stories_sorted_by_id_desc(self, tix_session):
+    def test_search_stories_sorted_by_id_desc(self):
         """Test search results are sorted by ID descending."""
-        tix = tix_session
+        tix = self.tix
 
         # Create stories
         s1 = tix.create_story(title="Alpha")
@@ -297,15 +320,15 @@ class TestTixSearchMethods:
         assert results[1].id == s2.id
         assert results[2].id == s1.id
 
-    def test_search_stories_no_params_raises_error(self, tix_session):
+    def test_search_stories_no_params_raises_error(self):
         """Test search_stories raises error when no parameters provided."""
-        tix = tix_session
+        tix = self.tix
         with pytest.raises(ValueError, match="At least one search parameter"):
             tix.search_stories()
 
-    def test_search_tasks_by_title(self, tix_session):
+    def test_search_tasks_by_title(self):
         """Test searching tasks by title with token matching."""
-        tix = tix_session
+        tix = self.tix
 
         # Create story and tasks
         story = tix.create_story(title="Parent Story")
@@ -322,9 +345,9 @@ class TestTixSearchMethods:
         assert len(results) == 1
         assert results[0].title == "Fix Bug"
 
-    def test_search_tasks_by_id_range(self, tix_session):
+    def test_search_tasks_by_id_range(self):
         """Test searching tasks by ID range."""
-        tix = tix_session
+        tix = self.tix
 
         story = tix.create_story(title="Story")
         t1 = tix.create_task(story_id=story.id, title="Task One")
@@ -338,9 +361,9 @@ class TestTixSearchMethods:
         assert results[0].id == t3.id
         assert results[1].id == t2.id
 
-    def test_search_tasks_by_date_range(self, tix_session):
+    def test_search_tasks_by_date_range(self):
         """Test searching tasks by date range."""
-        tix = tix_session
+        tix = self.tix
 
         story = tix.create_story(title="Story")
         t1 = tix.create_task(story_id=story.id, title="Task")
@@ -354,15 +377,15 @@ class TestTixSearchMethods:
         results = tix.search_tasks(date_upper="2000-01-01")
         assert len(results) == 0
 
-    def test_search_tasks_no_params_raises_error(self, tix_session):
+    def test_search_tasks_no_params_raises_error(self):
         """Test search_tasks raises error when no parameters provided."""
-        tix = tix_session
+        tix = self.tix
         with pytest.raises(ValueError, match="At least one search parameter"):
             tix.search_tasks()
 
-    def test_search_stories_with_limit(self, tix_session):
+    def test_search_stories_with_limit(self):
         """Test search_stories respects limit parameter."""
-        tix = tix_session
+        tix = self.tix
 
         # Create multiple stories
         for i in range(5):
@@ -375,9 +398,9 @@ class TestTixSearchMethods:
         # Results should be sorted by ID descending (newest first)
         assert results[0].id > results[1].id > results[2].id
 
-    def test_search_tasks_with_limit(self, tix_session):
+    def test_search_tasks_with_limit(self):
         """Test search_tasks respects limit parameter."""
-        tix = tix_session
+        tix = self.tix
 
         story = tix.create_story(title="Story")
         for i in range(5):
@@ -387,9 +410,9 @@ class TestTixSearchMethods:
         results = tix.search_tasks(id_lower=1, limit=3)
         assert len(results) == 3
 
-    def test_search_stories_by_status(self, tix_session):
+    def test_search_stories_by_status(self):
         """Test searching stories by status list."""
-        tix = tix_session
+        tix = self.tix
 
         # Create stories with different statuses
         s1 = tix.create_story(title="Story One")
@@ -420,9 +443,9 @@ class TestTixSearchMethods:
         results = tix.search_stories(status=[StatusEnum.BLOCKED])
         assert len(results) == 0
 
-    def test_search_tasks_by_status(self, tix_session):
+    def test_search_tasks_by_status(self):
         """Test searching tasks by status list."""
-        tix = tix_session
+        tix = self.tix
 
         story = tix.create_story(title="Parent Story")
 
@@ -451,9 +474,9 @@ class TestTixSearchMethods:
         result_ids = {r.id for r in results}
         assert result_ids == {t1.id, t2.id, t4.id}
 
-    def test_search_stories_by_status_with_limit(self, tix_session):
+    def test_search_stories_by_status_with_limit(self):
         """Test searching stories by status respects limit."""
-        tix = tix_session
+        tix = self.tix
 
         # Create 5 stories all with TODO status
         for i in range(5):
@@ -464,9 +487,9 @@ class TestTixSearchMethods:
         results = tix.search_stories(status=[StatusEnum.TODO], limit=3)
         assert len(results) == 3
 
-    def test_search_tasks_by_status_with_limit(self, tix_session):
+    def test_search_tasks_by_status_with_limit(self):
         """Test searching tasks by status respects limit."""
-        tix = tix_session
+        tix = self.tix
 
         story = tix.create_story(title="Story")
 
@@ -479,9 +502,9 @@ class TestTixSearchMethods:
         results = tix.search_tasks(status=[StatusEnum.TODO], limit=3)
         assert len(results) == 3
 
-    def test_search_stories_status_combined_with_other_filters(self, tix_session):
+    def test_search_stories_status_combined_with_other_filters(self):
         """Test searching stories by status combined with title and date filters."""
-        tix = tix_session
+        tix = self.tix
 
         # Create stories
         s1 = tix.create_story(title="Login Feature")
@@ -501,9 +524,9 @@ class TestTixSearchMethods:
         assert len(results) == 1
         assert results[0].id == s1.id
 
-    def test_search_tasks_status_combined_with_other_filters(self, tix_session):
+    def test_search_tasks_status_combined_with_other_filters(self):
         """Test searching tasks by status combined with title filter."""
-        tix = tix_session
+        tix = self.tix
 
         story = tix.create_story(title="Story")
 
@@ -525,12 +548,14 @@ class TestTixSearchMethods:
         assert results[0].id == t1.id
 
 
-class TestTixQueryMethodsWithLimit:
+class TestTixQueryMethodsWithLimit(BaseTest):
     """Test query methods with limit parameter."""
 
-    def test_query_stories_with_limit(self, tix_session):
+    dir_tix = path_enum.dir_unit_test / ".tix-query-methods-with-limit"
+
+    def test_query_stories_with_limit(self):
         """Test query_stories respects limit parameter."""
-        tix = tix_session
+        tix = self.tix
 
         # Create multiple stories
         for i in range(5):
@@ -547,9 +572,9 @@ class TestTixQueryMethodsWithLimit:
         # Results should be sorted by ID descending
         assert results[0].id > results[1].id > results[2].id
 
-    def test_query_tasks_with_limit(self, tix_session):
+    def test_query_tasks_with_limit(self):
         """Test query_tasks respects limit parameter."""
-        tix = tix_session
+        tix = self.tix
 
         story = tix.create_story(title="Story")
         for i in range(5):
@@ -564,10 +589,12 @@ class TestTixQueryMethodsWithLimit:
         assert len(results) == 3
 
 
-class TestTixManageStory:
+class TestTixManageStory(BaseTest):
     """Test Story CRUD operations with a complete workflow."""
 
-    def test(self, tix_session):
+    dir_tix = path_enum.dir_unit_test / ".tix-manage-story"
+
+    def test(self):
         """
         Test complete Story CRUD workflow.
 
@@ -581,7 +608,7 @@ class TestTixManageStory:
         7. Verify first story is gone, second remains
         8. Delete non-existent story returns False
         """
-        tix = tix_session
+        tix = self.tix
 
         # --- Step 1: Create first story ---
         story1 = tix.create_story(
@@ -639,7 +666,7 @@ class TestTixManageStory:
         assert tix.delete_story(99999) is False
         assert tix.delete_story(story1.id) is False  # Already deleted
 
-    def test_update_story_with_tasks(self, tix_session):
+    def test_update_story_with_tasks(self):
         """
         Test that update_story updates Task.path when story folder changes.
 
@@ -650,7 +677,7 @@ class TestTixManageStory:
         4. Verify Task.path in database is updated correctly
         5. Verify tasks still accessible via filesystem
         """
-        tix = tix_session
+        tix = self.tix
 
         # --- Step 1: Create story ---
         story = tix.create_story(title="Original Title")
@@ -690,13 +717,13 @@ class TestTixManageStory:
         assert refetched_task1.path_metadata.exists()
         assert refetched_task2.path_metadata.exists()
 
-    def test_update_story_without_title_change(self, tix_session):
+    def test_update_story_without_title_change(self):
         """
         Test update_story with status/description/report but no title change.
 
         Covers lines 468, 472, 476 (update without folder rename).
         """
-        tix = tix_session
+        tix = self.tix
 
         # Create story
         story = tix.create_story(title="My Story")
@@ -719,14 +746,14 @@ class TestTixManageStory:
         assert "Updated description content." in updated.read_description()
         assert "Final report content." in updated.read_report()
 
-    def test_update_story_title_same_sanitized(self, tix_session):
+    def test_update_story_title_same_sanitized(self):
         """
         Test update_story with title change that produces same sanitized result.
 
         Covers line 453 (title change without folder rename).
         Example: "My Story" -> "My Story!" both sanitize to "My-Story"
         """
-        tix = tix_session
+        tix = self.tix
 
         # Create story with title
         story = tix.create_story(title="My Story")
@@ -744,7 +771,7 @@ class TestTixManageStory:
         refetched = tix.get_story(story.id)
         assert refetched.title == "My Story!"
 
-    def test_delete_story_with_tasks(self, tix_session):
+    def test_delete_story_with_tasks(self):
         """
         Test that delete_story also deletes all tasks from database.
 
@@ -753,7 +780,7 @@ class TestTixManageStory:
         2. Delete story
         3. Verify tasks are also deleted from database
         """
-        tix = tix_session
+        tix = self.tix
 
         # --- Step 1: Create story with tasks ---
         story = tix.create_story(title="Story To Delete")
@@ -774,10 +801,12 @@ class TestTixManageStory:
         assert len(tix.query_tasks_by_story(story.id)) == 0
 
 
-class TestTixManageTask:
+class TestTixManageTask(BaseTest):
     """Test Task CRUD operations with a complete workflow."""
 
-    def test(self, tix_session):
+    dir_tix = path_enum.dir_unit_test / ".tix-manage-task"
+
+    def test(self):
         """
         Test complete Task CRUD workflow.
 
@@ -795,7 +824,7 @@ class TestTixManageTask:
         11. Delete non-existent task returns False
         12. Create task with invalid story ID raises error
         """
-        tix = tix_session
+        tix = self.tix
 
         # --- Step 1: Create parent story ---
         parent_story = tix.create_story(title="Parent Story")
@@ -897,14 +926,14 @@ class TestTixManageTask:
         with pytest.raises(ValueError, match="Story with ID 99999 not found"):
             tix.create_task(story_id=99999, title="Invalid Task")
 
-    def test_update_task_title_same_sanitized(self, tix_session):
+    def test_update_task_title_same_sanitized(self):
         """
         Test update_task with title change that produces same sanitized result.
 
         Covers line 656 (title change without folder rename).
         Example: "My Task" -> "My Task!" both sanitize to "My-Task"
         """
-        tix = tix_session
+        tix = self.tix
 
         # Create story and task
         story = tix.create_story(title="Parent Story")

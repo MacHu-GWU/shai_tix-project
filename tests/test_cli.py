@@ -324,6 +324,8 @@ class TestCliDirectoryDeletedMidway(BaseTest):
         tix = Tix(dir_root=self.dir_tix)
         tix.rebuild_index_db()
         assert tix.get_story(id=1) is not None
+        # Release SQLite file lock (required on Windows)
+        tix.engine.dispose()
 
         print("--- Step 2. Delete the entire .tix directory (simulate user accident)")
         shutil.rmtree(self.dir_tix)
@@ -463,6 +465,8 @@ class TestCliDatabaseCorrupted(BaseTest):
         tix.rebuild_index_db()
         assert len(tix.query_stories()) == 2
         assert len(tix.query_tasks()) == 1
+        # Release SQLite file lock (required on Windows)
+        tix.engine.dispose()
 
         print("--- Step 2. Delete database file")
         db_path = self.dir_tix / "index.sqlite"
@@ -489,6 +493,8 @@ class TestCliDatabaseCorrupted(BaseTest):
         self.cli.create_story(title="Corruption Test Story")
         tix = Tix(dir_root=self.dir_tix)
         tix.rebuild_index_db()
+        # Release SQLite file lock (required on Windows)
+        tix.engine.dispose()
 
         print("--- Step 2. Simulate corruption recovery by deleting database")
         db_path = self.dir_tix / "index.sqlite"

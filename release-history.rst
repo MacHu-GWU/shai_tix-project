@@ -22,11 +22,30 @@ x.y.z (Backlog)
 - Add ``--status`` filter to ``search_stories`` and ``search_tasks`` CLI commands
 - Support comma-separated status values for filtering (e.g., ``--status "TODO,IN_PROGRESS"``)
 - Add ``--limit`` parameter to story and task query methods
+- Add title encoding/decoding module (``title_codec``) for robust folder name handling
+- Title validation: only letters (a-z, A-Z), digits (0-9), and spaces allowed
+- Automatic title normalization: spaces → hyphens for folder names, hyphens → spaces for display
 
-**Bugfixes**
+**CLI Stability Improvements**
 
 - Improve CLI error handling with human-friendly error messages
 - Fix status parameter parsing to handle both string and tuple inputs from fire
+- Support custom root directory via ``--root`` parameter for all CLI commands
+- Better fault tolerance when folder titles are manually edited by humans
+- Graceful handling of invalid characters in folder names (decoded as spaces)
+
+**Documentation**
+
+- Improve CLI docstrings with detailed parameter descriptions
+- Document output formats for ``get_story``, ``get_task`` commands
+- Clarify search behavior: token-based matching (ANY token match)
+- Add examples for status filtering in docstrings
+
+**Testing**
+
+- Add comprehensive CLI integration tests covering edge cases
+- Test recovery scenarios: deleted directories, corrupted database, manual edits
+- Add title codec tests with round-trip encoding/decoding verification
 
 
 0.1.1 (2025-12-27)

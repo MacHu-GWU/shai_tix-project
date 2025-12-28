@@ -14,6 +14,7 @@ results using the Tix API. Tests are organized into multiple classes:
 6. TestCliDatabaseCorrupted - Tests when database is corrupted but filesystem intact
 """
 
+import gc
 import shutil
 from pathlib import Path
 
@@ -338,6 +339,8 @@ class TestCliDirectoryDeletedMidway(BaseTest):
         assert tix.get_story(id=1) is not None
         # Release SQLite file lock (required on Windows)
         tix.engine.dispose()
+        del tix
+        gc.collect()  # Force cleanup of CLI's internal Tix instances
 
         print("--- Step 2. Delete the entire .tix directory (simulate user accident)")
         shutil.rmtree(self.dir_tix)
@@ -479,6 +482,8 @@ class TestCliDatabaseCorrupted(BaseTest):
         assert len(tix.query_tasks()) == 1
         # Release SQLite file lock (required on Windows)
         tix.engine.dispose()
+        del tix
+        gc.collect()  # Force cleanup of CLI's internal Tix instances
 
         print("--- Step 2. Delete database file")
         db_path = self.dir_tix / "index.sqlite"
@@ -507,6 +512,8 @@ class TestCliDatabaseCorrupted(BaseTest):
         tix.rebuild_index_db()
         # Release SQLite file lock (required on Windows)
         tix.engine.dispose()
+        del tix
+        gc.collect()  # Force cleanup of CLI's internal Tix instances
 
         print("--- Step 2. Simulate corruption recovery by deleting database")
         db_path = self.dir_tix / "index.sqlite"

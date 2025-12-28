@@ -574,20 +574,10 @@ class Tix:
         """
         Get a story by ID from the index database.
 
-        Queries the SQLite index database. If not found, rebuilds the index
-        and tries once more. Returns None if still not found.
-
         :param id: Story ID to retrieve
 
         :returns: Story object if found, None otherwise
         """
-        # First attempt
-        story = self.query_story(id)
-        if story is not None:
-            return story
-
-        # Rebuild index and try again
-        self.rebuild_index_db()
         return self.query_story(id)
 
     def update_story(
@@ -791,20 +781,10 @@ class Tix:
         """
         Get a task by ID from the index database.
 
-        Queries the SQLite index database. If not found, rebuilds the index
-        and tries once more. Returns None if still not found.
-
         :param id: Task ID to retrieve
 
         :returns: Task object if found, None otherwise
         """
-        # First attempt
-        task = self.query_task(id)
-        if task is not None:
-            return task
-
-        # Rebuild index and try again
-        self.rebuild_index_db()
         return self.query_task(id)
 
     def update_task(

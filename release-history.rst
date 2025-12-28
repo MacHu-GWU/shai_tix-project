@@ -29,8 +29,9 @@ x.y.z (Backlog)
 
 **Architecture**
 
-- Move error recovery logic from ``tix.py`` to ``cli.py`` (separation of concerns)
-- ``Tix`` API remains pure - errors propagate to caller for explicit handling
+- Move all error recovery logic from ``tix.py`` to ``cli.py`` (separation of concerns)
+- Remove auto-rebuild from ``Tix.get_story()`` and ``Tix.get_task()`` methods
+- ``Tix`` API is now pure - errors propagate to caller for explicit handling
 - CLI provides user-friendly auto-recovery via ``_with_auto_rebuild`` wrapper
 - All 13 CLI commands wrapped with consistent error handling pattern
 

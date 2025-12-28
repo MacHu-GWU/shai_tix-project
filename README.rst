@@ -56,19 +56,38 @@ File-based task management for AI agents with human-editable markdown storage.
 What is shai_tix?
 ------------------------------------------------------------------------------
 
-``shai_tix`` is a task management system designed **primarily for AI agents**
-(like Claude Code) while remaining **fully accessible to humans**. It uses
-plain files and directories as storage, so both AI and humans can read, edit,
-and track changes through git.
+``shai_tix`` is a **JIRA-like project management system designed for AI agents**.
+Instead of clicking through web UIs, AI agents (like Claude Code) use simple CLI
+commands to manage your project. You just tell the AI what you want in natural
+language, and it handles creating stories, tracking tasks, and updating status.
+
+**Key Benefits:**
+
+- **Voice-Driven Project Management**: Tell your AI agent "create a story for user authentication with three tasks", and it's done
+- **100% Git-Friendly**: All data lives in markdown files - track changes, review history, merge conflicts like code
+- **Zero Vendor Lock-in**: Plain files mean easy migration - no database exports, no API migrations
+- **Human-Editable**: Browse and edit ``.tix/`` directory directly when needed
+
+
+Why Not Just Use JIRA/Trello/etc?
+------------------------------------------------------------------------------
+
+Traditional project management tools are designed for humans clicking through UIs.
+When AI agents need to manage tasks, they face:
+
+- Complex APIs with authentication and rate limits
+- Heavyweight dependencies and network latency
+- Data locked in proprietary formats
+
+``shai_tix`` solves this by storing everything as local files:
+
+- **AI agents** use fast CLI commands with instant response
+- **Humans** get readable markdown they can edit anywhere
+- **Git** provides version control, history, and collaboration for free
 
 
 Design Philosophy
 ------------------------------------------------------------------------------
-
-**AI-First, Human-Friendly**
-
-- **For AI**: CLI interface (``shai-tix``) with simple text output that AI can parse
-- **For Humans**: Markdown files you can browse, edit, and version control
 
 **Dual Storage Architecture**
 
@@ -85,6 +104,33 @@ Design Philosophy
 No deep nesting. If a task needs subtasks, promote it to a story.
 
 
+CLI Commands Overview
+------------------------------------------------------------------------------
+
+**Story Management**
+
+- ``create_story``: Create a new story (epic/feature)
+- ``get_story``: View story details including description and report
+- ``list_stories``: List all stories, newest first
+- ``search_stories``: Find stories by title, status, date, or ID range
+- ``update_story``: Update story title, status, description, or report
+- ``delete_story``: Delete a story and all its tasks
+
+**Task Management**
+
+- ``create_task``: Create a task under a story
+- ``get_task``: View task details including description and report
+- ``list_tasks``: List all tasks, newest first
+- ``list_tasks_by_story``: List tasks under a specific story
+- ``search_tasks``: Find tasks by title, status, date, or ID range
+- ``update_task``: Update task title, status, description, or report
+- ``delete_task``: Delete a task
+
+**Index Management**
+
+- ``rebuild_index_db``: Sync SQLite index with filesystem (call before batch queries)
+
+
 Quick Start
 ------------------------------------------------------------------------------
 
@@ -97,19 +143,34 @@ Quick Start
 
     # Query and update
     shai-tix list_stories
-    shai-tix update_task 2 --status COMPLETED
+    shai-tix search_tasks --status TODO
+    shai-tix update_task 2 --status IN_PROGRESS
+    shai-tix update_task 2 --status COMPLETED --report "Login form implemented with validation"
 
 **For Humans (File System)**::
 
     .tix/
+    ├── index.sqlite                    # Fast query index (auto-generated)
     └── stories/
         └── story-2025-01-15-00001-user-authentication/
-            ├── metadata.json          # {"status": "IN_PROGRESS"}
-            ├── description.md         # Editable markdown
+            ├── metadata.json           # {"status": "IN_PROGRESS"}
+            ├── description.md          # Story description (editable)
+            ├── report.md               # Completion report (optional)
             └── tasks/
                 └── task-2025-01-15-00002-create-login-form/
-                    ├── metadata.json
-                    └── description.md
+                    ├── metadata.json   # {"status": "COMPLETED"}
+                    ├── description.md  # Task description
+                    └── report.md       # Task completion report
+
+
+Status Values
+------------------------------------------------------------------------------
+
+- ``TODO``: Not started
+- ``IN_PROGRESS``: Currently being worked on
+- ``COMPLETED``: Finished
+- ``BLOCKED``: Blocked by external dependencies
+- ``CANCELED``: Canceled
 
 
 .. _install:

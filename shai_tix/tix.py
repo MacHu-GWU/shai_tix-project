@@ -16,12 +16,6 @@ from .utils import build_folder_name, Ticket
 from .title_codec import validate_title, encode_title
 
 
-class StoryAlreadyExistsError(Exception):
-    """Raised when attempting to create a story with an ID that already exists."""
-
-    pass
-
-
 @dataclasses.dataclass(frozen=True)
 class Tix:
     dir_root: Path = dataclasses.field()
@@ -529,7 +523,6 @@ class Tix:
         :returns: Created Story object
 
         :raises TitleValidationError: If title contains invalid characters
-        :raises StoryAlreadyExistsError: If the generated ID already exists
         """
         # Validate and encode title
         validate_title(title)

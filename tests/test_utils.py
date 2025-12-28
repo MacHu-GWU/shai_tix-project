@@ -3,7 +3,7 @@
 import shutil
 from pathlib import Path
 
-from shai_tix.utils import Ticket, safe_write
+from shai_tix.utils import Ticket, safe_write, build_folder_name
 from shai_tix.paths import path_enum
 
 
@@ -95,6 +95,40 @@ class TestTicketFromFolder:
             ticket = Ticket.from_folder(folder)
             assert ticket is not None
             assert ticket.title == expected_title, f"Failed: {folder_name!r} → {expected_title!r}"
+
+
+class TestBuildFolderName:
+    """Tests for build_folder_name function."""
+
+    def test_build_story_folder(self):
+        """Build folder name for a story."""
+        result = build_folder_name(
+            type="story",
+            date="2025-12-28",
+            id=1,
+            sanitized_title="User-Authentication",
+        )
+        assert result == "story-2025-12-28-00001-User-Authentication"
+
+    def test_build_task_folder(self):
+        """Build folder name for a task."""
+        result = build_folder_name(
+            type="task",
+            date="2025-01-15",
+            id=42,
+            sanitized_title="Create-Login-Form",
+        )
+        assert result == "task-2025-01-15-00042-Create-Login-Form"
+
+    def test_build_with_large_id(self):
+        """Build folder name with large ID (exceeds zero padding)."""
+        result = build_folder_name(
+            type="story",
+            date="2024-06-01",
+            id=999999,
+            sanitized_title="Big-Project",
+        )
+        assert result == "story-2024-06-01-999999-Big-Project"
 
 
 class TestSafeWrite:

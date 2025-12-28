@@ -15,23 +15,6 @@ valid_title_charset = string.ascii_letters + string.digits
 valid_title_charset = set(valid_title_charset)
 
 
-def sanitize_title(title: str) -> str:  # pragma: no cover
-    """
-    Sanitize a title string for use in directory/file names.
-
-    Converts a human-readable title into a hyphen-separated string containing
-    only alphanumeric characters. Invalid characters are replaced with spaces,
-    then consecutive spaces are collapsed and converted to single hyphens.
-
-    :param title: The original title string to sanitize
-
-    :returns: Sanitized title with only alphanumeric characters and hyphens
-    """
-    chars = [char if char in valid_title_charset else " " for char in title]
-    # make sure no consecutive spaces
-    return "-".join("".join(chars).split())
-
-
 def build_folder_name(
     type: Literal["story", "task"],
     date: str,

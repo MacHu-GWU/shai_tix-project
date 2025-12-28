@@ -93,6 +93,9 @@ class TestCliHappyPath(BaseTest):
         assert story2 is not None
         assert "Migration" in story2.title
 
+        print("--- Step 3a. Get story without description or report (CLI coverage)")
+        self.cli.get_story(id=2)  # No description or report files
+
         print("--- Step 4. List all stories (should show 2 stories)")
         self.cli.list_stories()
         stories = self.tix.query_stories()
@@ -153,6 +156,12 @@ class TestCliHappyPath(BaseTest):
         assert task.read_description() == "Updated description for login form."
         assert task.read_report() == "Form structure completed."
 
+        print("--- Step 11a. Get task with description and report (CLI coverage)")
+        self.cli.get_task(id=3)  # Has both description and report
+
+        print("--- Step 11b. Get task without description or report")
+        self.cli.get_task(id=4)  # Only has default metadata, no description/report files
+
         print("--- Step 12. Update task title (triggers folder rename)")
         old_path = self.tix.get_task(id=3).path
         self.cli.update_task(id=3, title="Create enhanced login form")
@@ -184,6 +193,9 @@ class TestCliHappyPath(BaseTest):
         story = self.tix.get_story(id=1)
         assert "OAuth" in story.read_description()
         assert "Phase 1" in story.read_report()
+
+        print("--- Step 15a. Get story with description and report (CLI coverage)")
+        self.cli.get_story(id=1)  # Has both description and report files
 
         print("--- Step 16. Search stories by title")
         self.cli.search_stories(title="Authentication")
@@ -659,6 +671,97 @@ class TestCliEdgeCases(BaseTest):
         assert story.title == "My Story"
         # Path should remain the same since encoded title is identical
         assert story.path == original_path
+
+
+class TestCliRootParameter(BaseTest):
+    """
+    Tests CLI with explicit --root parameter.
+
+    This tests the code path where root is passed explicitly to _get_tix().
+    """
+
+    dir_test_root = path_enum.dir_unit_test / "cli-root-param"
+
+    def test_root_parameter(self):
+        """Test CLI operations with explicit root parameter."""
+        print("=== TestCliRootParameter.test_root_parameter")
+        print("--- Step 1. Create story using root parameter")
+        # Use a fresh Cli instance without dir_root set
+        cli = Cli()
+        cli.create_story(title="Root Param Test", root=str(self.dir_test_root))
+
+        print("--- Step 2. Verify story was created in correct location")
+        tix = Tix(dir_root=self.dir_tix)
+        tix.rebuild_index_db()
+        story = tix.get_story(id=1)
+        assert story is not None
+        assert "Root" in story.title
+
+
+class TestParseStatusFunctions:
+    """
+    Unit tests for _parse_status_list and _parse_status_enum helper functions.
+    """
+
+    def test_parse_status_list_none(self):
+        """Test _parse_status_list with None input."""
+        from shai_tix.cli import _parse_status_list
+
+        result = _parse_status_list(None)
+        assert result is None
+
+    def test_parse_status_list_string(self):
+        """Test _parse_status_list with comma-separated string."""
+        from shai_tix.cli import _parse_status_list
+
+        result = _parse_status_list("TODO,IN_PROGRESS")
+        assert result == [StatusEnum.TODO, StatusEnum.IN_PROGRESS]
+
+    def test_parse_status_list_single(self):
+        """Test _parse_status_list with single status string."""
+        from shai_tix.cli import _parse_status_list
+
+        result = _parse_status_list("COMPLETED")
+        assert result == [StatusEnum.COMPLETED]
+
+    def test_parse_status_list_tuple(self):
+        """Test _parse_status_list with tuple input (fire parsing behavior)."""
+        from shai_tix.cli import _parse_status_list
+
+        # fire may parse comma-separated values as tuple
+        result = _parse_status_list(("TODO", "BLOCKED"))
+        assert result == [StatusEnum.TODO, StatusEnum.BLOCKED]
+
+    def test_parse_status_list_invalid(self):
+        """Test _parse_status_list with invalid status raises ValueError."""
+        from shai_tix.cli import _parse_status_list
+        import pytest
+
+        with pytest.raises(ValueError):
+            _parse_status_list("INVALID_STATUS")
+
+    def test_parse_status_enum_none(self):
+        """Test _parse_status_enum with None input."""
+        from shai_tix.cli import _parse_status_enum
+
+        result = _parse_status_enum(None)
+        assert result is None
+
+    def test_parse_status_enum_valid(self):
+        """Test _parse_status_enum with valid status."""
+        from shai_tix.cli import _parse_status_enum
+
+        result = _parse_status_enum("IN_PROGRESS")
+        assert result == StatusEnum.IN_PROGRESS
+
+    def test_parse_status_enum_invalid(self):
+        """Test _parse_status_enum with invalid status exits with error."""
+        from shai_tix.cli import _parse_status_enum
+        import pytest
+
+        with pytest.raises(SystemExit) as exc_info:
+            _parse_status_enum("NOT_A_STATUS")
+        assert exc_info.value.code == 1
 
 
 if __name__ == "__main__":

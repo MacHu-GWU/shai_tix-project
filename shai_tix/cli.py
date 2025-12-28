@@ -482,9 +482,9 @@ class Cli:
             print(f"Task {id} not found")
 
 
-def run():
+def run(): # pragma: no cover
     fire.Fire(Cli)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__": # pragma: no cover
     run()

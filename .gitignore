@@ -4,7 +4,7 @@ docs/source/**/index.md
 tmp/
 .claude/claude-code-message.md
 .tix/index.sqlite
-tests/.tix
+tests/.tix-*
 scripts/.tix
 
 # Byte-compiled / optimized / DLL files

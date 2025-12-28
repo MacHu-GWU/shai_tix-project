@@ -49,7 +49,7 @@ Quick Start
 Index Management
 ------------------------------------------------------------------------------
 
-**rebuild_index_db**
+:meth:`~shai_tix.cli.Cli.rebuild_index_db`
 
 Rebuild the SQLite index from filesystem. Call this before running multiple
 query commands to avoid repeated rebuilds:
@@ -71,7 +71,7 @@ query commands to avoid repeated rebuilds:
 Story Commands
 ------------------------------------------------------------------------------
 
-**create_story**
+:meth:`~shai_tix.cli.Cli.create_story`
 
 Create a new story:
 
@@ -85,7 +85,7 @@ Create a new story:
 
 Output: ``Created story [1] Story Title``
 
-**get_story**
+:meth:`~shai_tix.cli.Cli.get_story`
 
 Get story details by ID:
 
@@ -105,7 +105,7 @@ Output::
     --- Report ---
     (No report)
 
-**list_stories**
+:meth:`~shai_tix.cli.Cli.list_stories`
 
 List all stories (ordered by ID descending, newest first):
 
@@ -119,7 +119,7 @@ List all stories (ordered by ID descending, newest first):
 
 Output: ``[{id}] {date} - {title}`` per line
 
-**update_story**
+:meth:`~shai_tix.cli.Cli.update_story`
 
 Update story properties:
 
@@ -139,7 +139,7 @@ Update story properties:
 
 Output: ``Updated story [1] New Title``
 
-**delete_story**
+:meth:`~shai_tix.cli.Cli.delete_story`
 
 Delete a story and all its tasks:
 
@@ -153,7 +153,7 @@ Output: ``Deleted story 1``
 Task Commands
 ------------------------------------------------------------------------------
 
-**create_task**
+:meth:`~shai_tix.cli.Cli.create_task`
 
 Create a new task under a story:
 
@@ -167,7 +167,7 @@ Create a new task under a story:
 
 Output: ``Created task [2] Task Title``
 
-**get_task**
+:meth:`~shai_tix.cli.Cli.get_task`
 
 Get task details by ID:
 
@@ -188,7 +188,7 @@ Output::
     --- Report ---
     (No report)
 
-**list_tasks**
+:meth:`~shai_tix.cli.Cli.list_tasks`
 
 List all tasks (ordered by ID descending):
 
@@ -199,7 +199,7 @@ List all tasks (ordered by ID descending):
 
 Output: ``[{id}] {date} - {title} (story: {story_id})`` per line
 
-**list_tasks_by_story**
+:meth:`~shai_tix.cli.Cli.list_tasks_by_story`
 
 List tasks under a specific story:
 
@@ -209,7 +209,7 @@ List tasks under a specific story:
 
 Output: ``[{id}] {date} - {title}`` per line
 
-**update_task**
+:meth:`~shai_tix.cli.Cli.update_task`
 
 Update task properties:
 
@@ -223,7 +223,7 @@ Update task properties:
 
 Output: ``Updated task [2] Task Title``
 
-**delete_task**
+:meth:`~shai_tix.cli.Cli.delete_task`
 
 Delete a task:
 
@@ -237,7 +237,7 @@ Output: ``Deleted task 2``
 Search Commands
 ------------------------------------------------------------------------------
 
-**search_stories**
+:meth:`~shai_tix.cli.Cli.search_stories`
 
 Search stories by various filters:
 
@@ -263,7 +263,7 @@ Search stories by various filters:
 
 Output: ``[{id}] {date} - {title}`` per line
 
-**search_tasks**
+:meth:`~shai_tix.cli.Cli.search_tasks`
 
 Search tasks by various filters (same parameters as search_stories):
 

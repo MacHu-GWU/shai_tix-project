@@ -235,14 +235,14 @@ Search and Query
 Index Management
 ------------------------------------------------------------------------------
 
-The Tix class uses a dual storage architecture:
+The :class:`~shai_tix.tix.Tix` class uses a dual storage architecture:
 
 - **Filesystem** (source of truth): Human-readable directories and markdown files
 - **SQLite Index** (cache): Fast queries without scanning directories
 
 **Rebuild Index**
 
-Call ``rebuild_index_db()`` to sync the SQLite index with the filesystem:
+Call :meth:`~shai_tix.tix.Tix.rebuild_index_db` to sync the SQLite index with the filesystem:
 
 .. code-block:: python
 
@@ -251,7 +251,7 @@ Call ``rebuild_index_db()`` to sync the SQLite index with the filesystem:
 
 **Session Context Manager**
 
-Use the ``session()`` context manager for batch read operations:
+Use the :meth:`~shai_tix.tix.Tix.session` context manager for batch read operations:
 
 .. code-block:: python
 
@@ -263,6 +263,8 @@ Use the ``session()`` context manager for batch read operations:
 
 **Ensure Index Exists**
 
+Call :meth:`~shai_tix.tix.Tix.ensure_index_db` to create the index only if it doesn't exist:
+
 .. code-block:: python
 
     # Creates index only if it doesn't exist
@@ -272,7 +274,8 @@ Use the ``session()`` context manager for batch read operations:
 Working with Files
 ------------------------------------------------------------------------------
 
-Story and Task objects provide methods to read and write content files:
+:class:`~shai_tix.db.Story` and :class:`~shai_tix.db.Task` objects provide methods
+to read and write content files:
 
 **Read Description and Report**
 

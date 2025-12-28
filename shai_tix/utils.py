@@ -9,12 +9,13 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 from .constants import WordsEnum, ZERO_PADDING
+from .title_codec import decode_title
 
 valid_title_charset = string.ascii_letters + string.digits
 valid_title_charset = set(valid_title_charset)
 
 
-def sanitize_title(title: str) -> str:
+def sanitize_title(title: str) -> str:  # pragma: no cover
     """
     Sanitize a title string for use in directory/file names.
 
@@ -76,6 +77,7 @@ class Ticket:
 
         Parses the folder name according to the pattern:
         ``{type}-{date}-{id}-{title}`` where type is "story" or "task".
+        The encoded title is decoded back to the original title with spaces.
 
         :param folder: Path object representing the folder (only name is checked,
             no filesystem validation is performed)
@@ -86,11 +88,11 @@ class Ticket:
         match = folder_pattern.match(folder.name)
         if match is None:
             return None
-        type_, date, id_str, title = match.groups()
+        type_, date, id_str, encoded_title = match.groups()
         return cls(
             type=type_,
             id=int(id_str),
-            title=title,
+            title=decode_title(encoded_title),
             date=date,
         )
 

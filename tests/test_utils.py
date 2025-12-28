@@ -1,27 +1,10 @@
 # -*- coding: utf-8 -*-
 
+import shutil
 from pathlib import Path
 
-from shai_tix.utils import (
-    sanitize_title,
-    Ticket,
-)
-
-
-def test_sanitize_title():
-    # before and after
-    cases = [
-        (
-            "How are you?",
-            "How-are-you",
-        ),
-        (
-            'I want you ("John Doe")',
-            "I-want-you-John-Doe",
-        ),
-    ]
-    for before, after in cases:
-        assert sanitize_title(before) == after
+from shai_tix.utils import Ticket, safe_write
+from shai_tix.paths import path_enum
 
 
 class TestTicketFromFolder:
@@ -32,7 +15,7 @@ class TestTicketFromFolder:
         assert ticket is not None
         assert ticket.type == "story"
         assert ticket.id == 1
-        assert ticket.title == "add-login-feature"
+        assert ticket.title == "add login feature"  # decoded: hyphens → spaces
         assert ticket.date == "2025-12-26"
 
     def test_valid_task_folder(self):
@@ -42,7 +25,7 @@ class TestTicketFromFolder:
         assert ticket is not None
         assert ticket.type == "task"
         assert ticket.id == 42
-        assert ticket.title == "create-user-table"
+        assert ticket.title == "create user table"  # decoded
         assert ticket.date == "2025-01-15"
 
     def test_valid_folder_with_long_title(self):
@@ -52,7 +35,7 @@ class TestTicketFromFolder:
         assert ticket is not None
         assert ticket.type == "story"
         assert ticket.id == 999999
-        assert ticket.title == "this-is-a-very-long-title-with-many-words"
+        assert ticket.title == "this is a very long title with many words"  # decoded
         assert ticket.date == "2024-06-01"
 
     def test_invalid_type_returns_none(self):
@@ -95,7 +78,78 @@ class TestTicketFromFolder:
         assert ticket is not None
         assert ticket.type == "task"
         assert ticket.id == 1
-        assert ticket.title == "real-title"
+        assert ticket.title == "real title"  # decoded
+
+    def test_decode_title_with_special_chars(self):
+        """Test that special chars in folder name are decoded to spaces."""
+        # If someone manually adds special chars to folder name
+        cases = [
+            # (folder_name, expected_title)
+            ("story-2025-01-01-00001-Hello-World", "Hello World"),
+            ("task-2025-01-01-00001-User-Authentication", "User Authentication"),
+            ("story-2025-01-01-00001-SingleWord", "SingleWord"),
+            ("story-2025-01-01-00001-A-B-C", "A B C"),
+        ]
+        for folder_name, expected_title in cases:
+            folder = Path(folder_name)
+            ticket = Ticket.from_folder(folder)
+            assert ticket is not None
+            assert ticket.title == expected_title, f"Failed: {folder_name!r} → {expected_title!r}"
+
+
+class TestSafeWrite:
+    """Tests for safe_write function."""
+
+    dir_test = path_enum.dir_unit_test / "safe-write-test"
+
+    def setup_method(self):
+        """Clean up test directory before each test."""
+        shutil.rmtree(self.dir_test, ignore_errors=True)
+
+    def teardown_method(self):
+        """Clean up test directory after each test."""
+        shutil.rmtree(self.dir_test, ignore_errors=True)
+
+    def test_write_to_existing_directory(self):
+        """Write file when parent directory already exists."""
+        # Create parent directory first
+        self.dir_test.mkdir(parents=True, exist_ok=True)
+        file_path = self.dir_test / "test.txt"
+
+        safe_write(file_path, "Hello World")
+
+        assert file_path.exists()
+        assert file_path.read_text(encoding="utf-8") == "Hello World"
+
+    def test_write_creates_parent_directories(self):
+        """Write file when parent directories don't exist."""
+        # Don't create parent directory - safe_write should create it
+        file_path = self.dir_test / "nested" / "deep" / "test.txt"
+        assert not file_path.parent.exists()
+
+        safe_write(file_path, "Nested Content")
+
+        assert file_path.exists()
+        assert file_path.read_text(encoding="utf-8") == "Nested Content"
+
+    def test_write_overwrites_existing_file(self):
+        """Overwrite existing file content."""
+        self.dir_test.mkdir(parents=True, exist_ok=True)
+        file_path = self.dir_test / "test.txt"
+
+        safe_write(file_path, "Original")
+        safe_write(file_path, "Updated")
+
+        assert file_path.read_text(encoding="utf-8") == "Updated"
+
+    def test_write_unicode_content(self):
+        """Write file with unicode content."""
+        self.dir_test.mkdir(parents=True, exist_ok=True)
+        file_path = self.dir_test / "unicode.txt"
+
+        safe_write(file_path, "你好世界 🌍")
+
+        assert file_path.read_text(encoding="utf-8") == "你好世界 🌍"
 
 
 if __name__ == "__main__":

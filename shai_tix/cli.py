@@ -1,19 +1,13 @@
 # -*- coding: utf-8 -*-
 
 import sys
+import dataclasses
 from pathlib import Path
 
 import fire
 
 from shai_tix.tix import Tix
 from shai_tix.constants import StatusEnum
-
-
-def _get_tix(root: str | None = None) -> Tix:
-    if root:
-        return Tix(dir_root=Path(root).joinpath(".tix"))
-    else:
-        return Tix(dir_root=Path.cwd().absolute().joinpath(".tix"))
 
 
 def _parse_status_list(status: str | tuple | None) -> list[StatusEnum] | None:
@@ -43,7 +37,7 @@ def _parse_status_enum(status: str | None) -> StatusEnum | None:
         print(f"Error: Invalid status '{status}'. Valid values: {valid}")
         sys.exit(1)
 
-
+@dataclasses.dataclass
 class Cli:
     """
     CLI for shai_tix task management system (designed for AI agents).
@@ -59,6 +53,15 @@ class Cli:
         shai-tix list_tasks
         shai-tix search_stories --title "auth"
     """
+    dir_root: Path | None = dataclasses.field(default=None)
+
+    def _get_tix(self, root: str | None = None) -> Tix:
+        if root is not None:
+            return Tix(dir_root=Path(root).joinpath(".tix"))
+        elif self.dir_root is not None:
+            return Tix(dir_root=self.dir_root.joinpath(".tix"))
+        else:
+            return Tix(dir_root=Path.cwd().absolute().joinpath(".tix"))
 
     def rebuild_index_db(
         self,
@@ -71,7 +74,7 @@ class Cli:
 
         :param root: Project root directory (default: current directory).
         """
-        tix = _get_tix(root)
+        tix = self._get_tix(root)
         tix.rebuild_index_db()
         print("Index database rebuilt")
 
@@ -89,7 +92,7 @@ class Cli:
         :param limit: Maximum number of stories to display.
         :param root: Project root directory (default: current directory).
         """
-        tix = _get_tix(root)
+        tix = self._get_tix(root)
         tix.ensure_index_db()
         stories = tix.query_stories()[:limit]
         for story in stories:
@@ -118,7 +121,7 @@ class Cli:
         :param limit: Maximum number of stories to display.
         :param root: Project root directory (default: current directory).
         """
-        tix = _get_tix(root)
+        tix = self._get_tix(root)
         tix.ensure_index_db()
         try:
             status_list = _parse_status_list(status)
@@ -151,7 +154,7 @@ class Cli:
         :param description: Story description.
         :param root: Project root directory (default: current directory).
         """
-        tix = _get_tix(root)
+        tix = self._get_tix(root)
         story = tix.create_story(title=title, description=description)
         print(f"Created story [{story.id}] {story.title}")
 
@@ -166,7 +169,7 @@ class Cli:
         :param id: Story ID.
         :param root: Project root directory (default: current directory).
         """
-        tix = _get_tix(root)
+        tix = self._get_tix(root)
         story = tix.get_story(id=id)
         if story is None:
             print(f"Story {id} not found")
@@ -206,7 +209,7 @@ class Cli:
         :param report: New report.
         :param root: Project root directory (default: current directory).
         """
-        tix = _get_tix(root)
+        tix = self._get_tix(root)
         status_enum = _parse_status_enum(status)
         story = tix.update_story(
             id=id,
@@ -231,7 +234,7 @@ class Cli:
         :param id: Story ID.
         :param root: Project root directory (default: current directory).
         """
-        tix = _get_tix(root)
+        tix = self._get_tix(root)
         success = tix.delete_story(id=id)
         if success:
             print(f"Deleted story {id}")
@@ -252,7 +255,7 @@ class Cli:
         :param limit: Maximum number of tasks to display.
         :param root: Project root directory (default: current directory).
         """
-        tix = _get_tix(root)
+        tix = self._get_tix(root)
         tix.ensure_index_db()
         tasks = tix.query_tasks()[:limit]
         for task in tasks:
@@ -271,7 +274,7 @@ class Cli:
         :param limit: Maximum number of tasks to display.
         :param root: Project root directory (default: current directory).
         """
-        tix = _get_tix(root)
+        tix = self._get_tix(root)
         tix.ensure_index_db()
         tasks = tix.query_tasks_by_story(story_id)[:limit]
         for task in tasks:
@@ -300,7 +303,7 @@ class Cli:
         :param limit: Maximum number of tasks to display.
         :param root: Project root directory (default: current directory).
         """
-        tix = _get_tix(root)
+        tix = self._get_tix(root)
         tix.ensure_index_db()
         try:
             status_list = _parse_status_list(status)
@@ -335,7 +338,7 @@ class Cli:
         :param description: Task description.
         :param root: Project root directory (default: current directory).
         """
-        tix = _get_tix(root)
+        tix = self._get_tix(root)
         try:
             task = tix.create_task(story_id=story_id, title=title, description=description)
             print(f"Created task [{task.id}] {task.title}")
@@ -354,7 +357,7 @@ class Cli:
         :param id: Task ID.
         :param root: Project root directory (default: current directory).
         """
-        tix = _get_tix(root)
+        tix = self._get_tix(root)
         task = tix.get_task(id=id)
         if task is None:
             print(f"Task {id} not found")
@@ -395,7 +398,7 @@ class Cli:
         :param report: New report.
         :param root: Project root directory (default: current directory).
         """
-        tix = _get_tix(root)
+        tix = self._get_tix(root)
         status_enum = _parse_status_enum(status)
         task = tix.update_task(
             id=id,
@@ -420,7 +423,7 @@ class Cli:
         :param id: Task ID.
         :param root: Project root directory (default: current directory).
         """
-        tix = _get_tix(root)
+        tix = self._get_tix(root)
         success = tix.delete_task(id=id)
         if success:
             print(f"Deleted task {id}")

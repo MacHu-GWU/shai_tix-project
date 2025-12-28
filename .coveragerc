@@ -6,7 +6,6 @@ omit =
     shai_tix/tests/*
     shai_tix/vendor/*
     shai_tix/_version.py
-    shai_tix/cli.py
     shai_tix/paths.py
 
 [report]

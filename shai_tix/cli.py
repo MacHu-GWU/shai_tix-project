@@ -87,7 +87,9 @@ class Cli:
         root: str | None = None,
     ):
         """
-        List all stories.
+        List all stories, ordered by ID descending (newest first).
+
+        Output format: ``[{id}] {date} - {title}``
 
         :param limit: Maximum number of stories to display.
         :param root: Project root directory (default: current directory).
@@ -112,12 +114,20 @@ class Cli:
         """
         Search stories by title, date range, ID range, or status.
 
-        :param title: Search keyword in title.
+        Results are ordered by ID descending (newest first).
+        Output format: ``[{id}] {date} - {title}``
+
+        :param title: Search keywords. The title is split into tokens by spaces,
+            and a story matches if ANY token is found in its title (case-insensitive).
+            Example: ``--title "login auth"`` matches stories containing "login" OR "auth".
         :param date_lower: Minimum date (YYYY-MM-DD).
         :param date_upper: Maximum date (YYYY-MM-DD).
         :param id_lower: Minimum story ID.
         :param id_upper: Maximum story ID.
-        :param status: Comma-separated status values (TODO,IN_PROGRESS,COMPLETED,BLOCKED,CANCELED).
+        :param status: Comma-separated status values to filter by. A story matches
+            if its status is ANY of the specified values.
+            Example: ``--status "TODO,IN_PROGRESS"`` matches TODO or IN_PROGRESS stories.
+            Valid values: TODO, IN_PROGRESS, COMPLETED, BLOCKED, CANCELED.
         :param limit: Maximum number of stories to display.
         :param root: Project root directory (default: current directory).
         """
@@ -150,8 +160,9 @@ class Cli:
         """
         Create a new story.
 
-        :param title: Story title.
-        :param description: Story description.
+        :param title: Story title. Only letters (a-z, A-Z), digits (0-9), and spaces
+            are allowed. Special characters will cause an error.
+        :param description: Story description (markdown content).
         :param root: Project root directory (default: current directory).
         """
         tix = self._get_tix(root)
@@ -165,6 +176,18 @@ class Cli:
     ):
         """
         Get a story by ID with full details.
+
+        Output format::
+
+            [{id}] {date} - {title}
+            Status: {status}
+            Path: {path}
+
+            --- Description ---
+            {description content or "(No description)"}
+
+            --- Report ---
+            {report content or "(No report)"}
 
         :param id: Story ID.
         :param root: Project root directory (default: current directory).
@@ -203,10 +226,11 @@ class Cli:
         Update a story by ID.
 
         :param id: Story ID.
-        :param title: New title.
+        :param title: New title. Only letters (a-z, A-Z), digits (0-9), and spaces
+            are allowed. Changing title will rename the story folder.
         :param status: New status (TODO, IN_PROGRESS, COMPLETED, BLOCKED, CANCELED).
-        :param description: New description.
-        :param report: New report.
+        :param description: New description (markdown content).
+        :param report: New report (markdown content).
         :param root: Project root directory (default: current directory).
         """
         tix = self._get_tix(root)
@@ -250,7 +274,9 @@ class Cli:
         root: str | None = None,
     ):
         """
-        List all tasks.
+        List all tasks, ordered by ID descending (newest first).
+
+        Output format: ``[{id}] {date} - {title} (story: {story_id})``
 
         :param limit: Maximum number of tasks to display.
         :param root: Project root directory (default: current directory).
@@ -268,7 +294,9 @@ class Cli:
         root: str | None = None,
     ):
         """
-        List all tasks under a story.
+        List all tasks under a story, ordered by ID descending (newest first).
+
+        Output format: ``[{id}] {date} - {title}``
 
         :param story_id: Parent story ID.
         :param limit: Maximum number of tasks to display.
@@ -294,12 +322,20 @@ class Cli:
         """
         Search tasks by title, date range, ID range, or status.
 
-        :param title: Search keyword in title.
+        Results are ordered by ID descending (newest first).
+        Output format: ``[{id}] {date} - {title} (story: {story_id})``
+
+        :param title: Search keywords. The title is split into tokens by spaces,
+            and a task matches if ANY token is found in its title (case-insensitive).
+            Example: ``--title "login form"`` matches tasks containing "login" OR "form".
         :param date_lower: Minimum date (YYYY-MM-DD).
         :param date_upper: Maximum date (YYYY-MM-DD).
         :param id_lower: Minimum task ID.
         :param id_upper: Maximum task ID.
-        :param status: Comma-separated status values (TODO,IN_PROGRESS,COMPLETED,BLOCKED,CANCELED).
+        :param status: Comma-separated status values to filter by. A task matches
+            if its status is ANY of the specified values.
+            Example: ``--status "TODO,IN_PROGRESS"`` matches TODO or IN_PROGRESS tasks.
+            Valid values: TODO, IN_PROGRESS, COMPLETED, BLOCKED, CANCELED.
         :param limit: Maximum number of tasks to display.
         :param root: Project root directory (default: current directory).
         """
@@ -334,8 +370,9 @@ class Cli:
         Create a new task under a story.
 
         :param story_id: Parent story ID.
-        :param title: Task title.
-        :param description: Task description.
+        :param title: Task title. Only letters (a-z, A-Z), digits (0-9), and spaces
+            are allowed. Special characters will cause an error.
+        :param description: Task description (markdown content).
         :param root: Project root directory (default: current directory).
         """
         tix = self._get_tix(root)
@@ -353,6 +390,19 @@ class Cli:
     ):
         """
         Get a task by ID with full details.
+
+        Output format::
+
+            [{id}] {date} - {title}
+            Status: {status}
+            Story ID: {story_id}
+            Path: {path}
+
+            --- Description ---
+            {description content or "(No description)"}
+
+            --- Report ---
+            {report content or "(No report)"}
 
         :param id: Task ID.
         :param root: Project root directory (default: current directory).
@@ -392,10 +442,11 @@ class Cli:
         Update a task by ID.
 
         :param id: Task ID.
-        :param title: New title.
+        :param title: New title. Only letters (a-z, A-Z), digits (0-9), and spaces
+            are allowed. Changing title will rename the task folder.
         :param status: New status (TODO, IN_PROGRESS, COMPLETED, BLOCKED, CANCELED).
-        :param description: New description.
-        :param report: New report.
+        :param description: New description (markdown content).
+        :param report: New report (markdown content).
         :param root: Project root directory (default: current directory).
         """
         tix = self._get_tix(root)

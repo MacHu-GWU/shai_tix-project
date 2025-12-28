@@ -128,21 +128,21 @@ class TestTixIterMethods(BaseTest):
         stories = list(self.tix.iter_stories())
         story_by_id = {s.id: s for s in stories}
 
-        # Check first story
+        # Check first story (titles are decoded: hyphens → spaces)
         story1 = story_by_id[1]
-        assert story1.title == "first-story"
+        assert story1.title == "first story"
         assert story1.date == "2025-01-01"
         assert story1.status == StatusEnum.COMPLETED.value
 
         # Check second story
         story4 = story_by_id[4]
-        assert story4.title == "second-story"
+        assert story4.title == "second story"
         assert story4.date == "2025-01-02"
         assert story4.status == StatusEnum.IN_PROGRESS.value
 
         # Check third story
         story8 = story_by_id[8]
-        assert story8.title == "third-story"
+        assert story8.title == "third story"
         assert story8.date == "2025-01-03"
         assert story8.status == StatusEnum.TODO.value
 
@@ -151,19 +151,19 @@ class TestTixIterMethods(BaseTest):
         tasks = list(self.tix.iter_tasks())
         task_by_id = {t.id: t for t in tasks}
 
-        # Check a task from each story
+        # Check a task from each story (titles are decoded: hyphens → spaces)
         task2 = task_by_id[2]
-        assert task2.title == "task-one"
+        assert task2.title == "task one"
         assert task2.date == "2025-01-01"
         assert task2.status == StatusEnum.COMPLETED.value
 
         task5 = task_by_id[5]
-        assert task5.title == "task-a"
+        assert task5.title == "task a"
         assert task5.date == "2025-01-02"
         assert task5.status == StatusEnum.COMPLETED.value
 
         task12 = task_by_id[12]
-        assert task12.title == "task-w"
+        assert task12.title == "task w"
         assert task12.date == "2025-01-03"
         assert task12.status == StatusEnum.TODO.value
 
@@ -746,12 +746,13 @@ class TestTixManageStory(BaseTest):
         assert "Updated description content." in updated.read_description()
         assert "Final report content." in updated.read_report()
 
-    def test_update_story_title_same_sanitized(self):
+    def test_update_story_title_same_encoded(self):
         """
-        Test update_story with title change that produces same sanitized result.
+        Test update_story with title change that produces same encoded result.
 
         Covers line 453 (title change without folder rename).
-        Example: "My Story" -> "My Story!" both sanitize to "My-Story"
+        Example: "My Story" -> "My  Story" both encode to "My-Story"
+        (different whitespace, same encoded folder name)
         """
         tix = self.tix
 
@@ -759,17 +760,17 @@ class TestTixManageStory(BaseTest):
         story = tix.create_story(title="My Story")
         original_path = story.path
 
-        # Update title to different string that sanitizes to same result
-        # "My Story" and "My Story!" both become "My-Story"
-        updated = tix.update_story(id=story.id, title="My Story!")
+        # Update title to different string that encodes to same result
+        # "My Story" and "My  Story" both become "My-Story"
+        updated = tix.update_story(id=story.id, title="My  Story")
 
-        # Folder should NOT change (same sanitized title)
+        # Folder should NOT change (same encoded title)
         assert updated.path == original_path
         assert updated.dir_root.exists()
 
-        # But title in database should be updated
+        # Title in database is the new title (stored as-is when folder unchanged)
         refetched = tix.get_story(story.id)
-        assert refetched.title == "My Story!"
+        assert refetched.title == "My  Story"
 
     def test_delete_story_with_tasks(self):
         """
@@ -926,12 +927,13 @@ class TestTixManageTask(BaseTest):
         with pytest.raises(ValueError, match="Story with ID 99999 not found"):
             tix.create_task(story_id=99999, title="Invalid Task")
 
-    def test_update_task_title_same_sanitized(self):
+    def test_update_task_title_same_encoded(self):
         """
-        Test update_task with title change that produces same sanitized result.
+        Test update_task with title change that produces same encoded result.
 
         Covers line 656 (title change without folder rename).
-        Example: "My Task" -> "My Task!" both sanitize to "My-Task"
+        Example: "My Task" -> "My  Task" both encode to "My-Task"
+        (different whitespace, same encoded folder name)
         """
         tix = self.tix
 
@@ -940,17 +942,17 @@ class TestTixManageTask(BaseTest):
         task = tix.create_task(story_id=story.id, title="My Task")
         original_path = task.path
 
-        # Update title to different string that sanitizes to same result
-        # "My Task" and "My Task!" both become "My-Task"
-        updated = tix.update_task(id=task.id, title="My Task!")
+        # Update title to different string that encodes to same result
+        # "My Task" and "My  Task" both become "My-Task"
+        updated = tix.update_task(id=task.id, title="My  Task")
 
-        # Folder should NOT change (same sanitized title)
+        # Folder should NOT change (same encoded title)
         assert updated.path == original_path
         assert updated.dir_root.exists()
 
-        # But title in database should be updated
+        # Title in database is the new title (stored as-is when folder unchanged)
         refetched = tix.get_task(task.id)
-        assert refetched.title == "My Task!"
+        assert refetched.title == "My  Task"
 
 
 if __name__ == "__main__":

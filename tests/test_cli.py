@@ -67,7 +67,7 @@ class TestCliHappyPath(BaseTest):
 
     def test_happy_path(self):
         """Complete CLI workflow test with 30+ steps."""
-
+        print("=== TestCliHappyPath.test_happy_path")
         print("--- Step 1. Create first story with description")
         self.cli.create_story(
             title="User Authentication",
@@ -285,18 +285,9 @@ class TestCliAutoCreateDirectory(BaseTest):
 
     dir_test_root = path_enum.dir_unit_test / "cli-auto-create"
 
-    @classmethod
-    def setup_class(cls):
-        """Override to NOT create directory - test auto-creation."""
-        cls.dir_tix = cls.dir_test_root / ".tix"
-        shutil.rmtree(cls.dir_test_root, ignore_errors=True)
-        # Note: We don't create the directory or call rebuild_index_db
-        cls.tix = Tix(dir_root=cls.dir_tix)
-        cls.cli = Cli(dir_root=cls.dir_test_root)
-
     def test_auto_create_on_create_story(self):
         """Test that create_story auto-creates .tix directory."""
-
+        print("=== TestCliAutoCreateDirectory.test_auto_create_on_create_story")
         print("--- Step 1. Verify directory does not exist")
         assert not self.dir_tix.exists()
 
@@ -325,7 +316,7 @@ class TestCliDirectoryDeletedMidway(BaseTest):
 
     def test_recovery_after_directory_deleted(self):
         """Test that operations recover after .tix directory is deleted."""
-
+        print("=== TestCliDirectoryDeletedMidway.test_recovery_after_directory_deleted")
         print("--- Step 1. Create initial data")
         self.cli.create_story(title="Initial Story")
         self.cli.create_task(story_id=1, title="Initial Task")
@@ -365,7 +356,7 @@ class TestCliStoryDeletedManually(BaseTest):
 
     def test_story_manually_deleted(self):
         """Test handling when story folder is deleted but DB still has record."""
-
+        print("=== TestCliStoryDeletedManually.test_story_manually_deleted")
         print("--- Step 1. Create story and task")
         self.cli.create_story(title="Story To Be Deleted Manually")
         self.cli.create_task(story_id=1, title="Task Under Deleted Story")
@@ -412,7 +403,7 @@ class TestCliTaskDeletedManually(BaseTest):
 
     def test_task_manually_deleted(self):
         """Test handling when task folder is deleted but DB still has record."""
-
+        print("=== TestCliTaskDeletedManually.test_task_manually_deleted")
         print("--- Step 1. Create story with tasks")
         self.cli.create_story(title="Parent Story")
         self.cli.create_task(story_id=1, title="Task To Keep")
@@ -463,7 +454,7 @@ class TestCliDatabaseCorrupted(BaseTest):
 
     def test_database_deleted(self):
         """Test recovery when database file is deleted."""
-
+        print("=== TestCliDatabaseCorrupted.test_database_deleted")
         print("--- Step 1. Create stories and tasks")
         self.cli.create_story(title="Story One")
         self.cli.create_story(title="Story Two")
@@ -492,7 +483,7 @@ class TestCliDatabaseCorrupted(BaseTest):
 
     def test_database_corrupted(self):
         """Test recovery when database file is corrupted (by deleting and rebuilding)."""
-
+        print("=== TestCliDatabaseCorrupted.test_database_corrupted")
         print("--- Step 1. Create data")
         self.cli.rebuild_index_db()  # Reset from previous test
         self.cli.create_story(title="Corruption Test Story")
@@ -525,7 +516,7 @@ class TestCliSearchFunctionality(BaseTest):
 
     def test_search_with_filters(self):
         """Test search with various filter combinations."""
-
+        print("=== TestCliSearchFunctionality.test_search_with_filters")
         print("--- Step 1. Create test data with different statuses")
         self.cli.create_story(title="Login Feature")
         self.cli.create_story(title="Payment Integration")
@@ -594,7 +585,7 @@ class TestCliEdgeCases(BaseTest):
 
     def test_create_task_with_invalid_story(self):
         """Test creating task with non-existent story ID."""
-
+        print("=== TestCliEdgeCases.test_create_task_with_invalid_story")
         print("--- Step 1. Try to create task under non-existent story")
         # This should print error message but not crash
         try:
@@ -607,27 +598,29 @@ class TestCliEdgeCases(BaseTest):
         tasks = self.tix.query_tasks()
         assert len(tasks) == 0
 
-    def test_title_with_special_characters(self):
-        """Test story/task titles with special characters."""
-
-        print("--- Step 1. Create story with special characters")
-        self.cli.create_story(title="Feature: User Auth (v2.0) - #123")
+    def test_title_with_multiple_spaces(self):
+        """Test story/task titles with extra whitespace (normalized by encoder)."""
+        print("=== TestCliEdgeCases.test_title_with_multiple_spaces")
+        print("--- Step 1. Create story with extra spaces")
+        self.cli.create_story(title="Feature  User  Auth  v2")
         tix = Tix(dir_root=self.dir_tix)
         tix.rebuild_index_db()
         story = tix.get_story(id=1)
         assert story is not None
-        # Title should be preserved, folder name sanitized
+        # Title is normalized (extra spaces collapsed)
+        assert story.title == "Feature User Auth v2"
 
-        print("--- Step 2. Create task with special characters")
-        self.cli.create_task(story_id=1, title="Fix bug #456 [urgent]")
+        print("--- Step 2. Create task with extra spaces")
+        self.cli.create_task(story_id=1, title="Fix   bug   456")
         tix = Tix(dir_root=self.dir_tix)
         tix.rebuild_index_db()
         task = tix.get_task(id=2)
         assert task is not None
+        assert task.title == "Fix bug 456"
 
     def test_empty_search_results(self):
         """Test search that returns no results."""
-
+        print("=== TestCliEdgeCases.test_empty_search_results")
         print("--- Step 1. Search for non-existent title")
         self.cli.search_stories(title="nonexistent_xyz_123")
         tix = Tix(dir_root=self.dir_tix)
@@ -640,9 +633,9 @@ class TestCliEdgeCases(BaseTest):
         tasks = tix.search_tasks(status=[StatusEnum.BLOCKED])
         assert len(tasks) == 0
 
-    def test_update_title_to_same_sanitized_value(self):
-        """Test updating title that sanitizes to same folder name."""
-
+    def test_update_title_to_same_encoded_value(self):
+        """Test updating title that encodes to same folder name."""
+        print("=== TestCliEdgeCases.test_update_title_to_same_encoded_value")
         print("--- Step 1. Create story")
         self.cli.create_story(title="My Story")
         tix = Tix(dir_root=self.dir_tix)
@@ -650,14 +643,15 @@ class TestCliEdgeCases(BaseTest):
         story = tix.get_story(id=1)
         original_path = story.path
 
-        print("--- Step 2. Update title with different punctuation (same sanitized)")
-        self.cli.update_story(id=1, title="My Story!")
+        print("--- Step 2. Update title with different whitespace (same encoded)")
+        # "My Story" and "My  Story" both encode to "My-Story"
+        self.cli.update_story(id=1, title="My  Story")
         tix = Tix(dir_root=self.dir_tix)
         tix.rebuild_index_db()
         story = tix.get_story(id=1)
-        # Title from folder is sanitized version
-        assert "My" in story.title
-        # Path should remain the same since sanitized title is identical
+        # Title from folder is decoded (normalized spaces)
+        assert story.title == "My Story"
+        # Path should remain the same since encoded title is identical
         assert story.path == original_path
 
 

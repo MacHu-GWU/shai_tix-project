@@ -12,7 +12,8 @@ import sqlalchemy.orm as orm
 
 from .constants import WordsEnum, StatusEnum
 from .db import Base, Story, Task
-from .utils import sanitize_title, build_folder_name, Ticket
+from .utils import build_folder_name, Ticket
+from .title_codec import validate_title, encode_title
 
 
 class StoryAlreadyExistsError(Exception):
@@ -522,28 +523,32 @@ class Tix:
 
         Automatically assigns the next available ID and updates the index database.
 
-        :param title: Story title
+        :param title: Story title (only letters, digits, and spaces allowed)
         :param description: Optional story description
 
         :returns: Created Story object
 
+        :raises TitleValidationError: If title contains invalid characters
         :raises StoryAlreadyExistsError: If the generated ID already exists
         """
+        # Validate and encode title
+        validate_title(title)
+        encoded_title = encode_title(title)
+
         # Ensure index exists
         self.ensure_index_db()
 
         # Get next ID
         story_id = self.get_next_id()
 
-        # Build folder name (sanitized_title is only used for folder naming)
+        # Build folder name
         utc_now = datetime.now(timezone.utc)
         date_str = str(utc_now.date())
-        sanitized_title = sanitize_title(title)
         folder_name = build_folder_name(
             type=WordsEnum.story.value,
             date=date_str,
             id=story_id,
-            sanitized_title=sanitized_title,
+            sanitized_title=encoded_title,
         )
         dir_root = self.dir_stories / folder_name
 
@@ -623,13 +628,14 @@ class Tix:
 
         # Handle title change - requires folder rename
         if title is not None and title != story.title:
-            # Build new folder name with sanitized title
-            sanitized_title = sanitize_title(title)
+            # Validate and encode new title
+            validate_title(title)
+            encoded_title = encode_title(title)
             new_folder_name = build_folder_name(
                 type=WordsEnum.story.value,
                 date=story.date,
                 id=story.id,
-                sanitized_title=sanitized_title,
+                sanitized_title=encoded_title,
             )
             new_dir = self.dir_stories / new_folder_name
 
@@ -727,13 +733,18 @@ class Tix:
         Create a new task under a story with auto-generated ID.
 
         :param story_id: Parent story ID
-        :param title: Task title
+        :param title: Task title (only letters, digits, and spaces allowed)
         :param description: Optional task description
 
         :returns: Created Task object
 
+        :raises TitleValidationError: If title contains invalid characters
         :raises ValueError: If parent story not found
         """
+        # Validate and encode title
+        validate_title(title)
+        encoded_title = encode_title(title)
+
         # Ensure index exists
         self.ensure_index_db()
 
@@ -745,15 +756,14 @@ class Tix:
         # Get next ID
         task_id = self.get_next_id()
 
-        # Build folder name (sanitized_title is only used for folder naming)
+        # Build folder name
         utc_now = datetime.now(timezone.utc)
         date_str = str(utc_now.date())
-        sanitized_title = sanitize_title(title)
         folder_name = build_folder_name(
             type=WordsEnum.task.value,
             date=date_str,
             id=task_id,
-            sanitized_title=sanitized_title,
+            sanitized_title=encoded_title,
         )
         dir_task = story.dir_root / "tasks" / folder_name
 
@@ -835,13 +845,14 @@ class Tix:
 
         # Handle title change - requires folder rename
         if title is not None and title != task.title:
-            # Build new folder name with sanitized title
-            sanitized_title = sanitize_title(title)
+            # Validate and encode new title
+            validate_title(title)
+            encoded_title = encode_title(title)
             new_folder_name = build_folder_name(
                 type=WordsEnum.task.value,
                 date=task.date,
                 id=task.id,
-                sanitized_title=sanitized_title,
+                sanitized_title=encoded_title,
             )
             # Task folder is inside story/tasks/
             new_dir = task.dir_root.parent / new_folder_name
